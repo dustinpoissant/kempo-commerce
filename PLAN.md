@@ -127,6 +127,12 @@ it is for callers that do not need two phases (the admin's "record a sale made e
 
 Until this exists, commerce must not be built past the cart.
 
+**kempo-inventory already has it.** Items there now have `quantity` (available) and `held`, with
+`holdStock`, `releaseStock` and `consumeHeld` (all or nothing across several items, each a movement).
+When kempo-products gains holds, the kempo-products-inventory connector should mirror them: holding
+a product holds its materials, committing consumes them, releasing gives them back — so what is
+reserved for an unpaid order is reserved all the way down.
+
 ### 4.2 kempo-products: a place for add-to-cart
 
 The detail page already has `<slot name="actions">` and the `products-detail-extra` fragment, and the
