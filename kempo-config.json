@@ -1,0 +1,9 @@
+{
+  "docs": "https://github.com/dustinpoissant/kempo-commerce#readme",
+  "git": "https://github.com/dustinpoissant/kempo-commerce",
+  "public-scope": "commerce",
+  "dependencies": [
+    "kempo-products",
+    "kempo-payments"
+  ]
+}

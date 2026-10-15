@@ -1,0 +1,20 @@
+{
+  "name": "kempo-commerce",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Carts, orders and checkout for kempo: sells what kempo-products lists, takes payment through kempo-payments, and applies tax, store credit and credits when they are installed",
+  "license": "MIT",
+  "author": "Dustin Poissant",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dustinpoissant/kempo-commerce.git"
+  },
+  "peerDependencies": {
+    "kempo": ">=4.5.8",
+    "kempo-payments": ">=0.1.10",
+    "kempo-products": ">=0.1.7",
+    "kempo-server": ">=3.3.0",
+    "kempo-ui": ">=0.4.53"
+  }
+}
