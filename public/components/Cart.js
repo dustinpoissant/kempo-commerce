@@ -157,7 +157,7 @@ export default class Cart extends ShadowComponent {
               <tr><td style="background-color: var(--c_bg__alt);"><strong>Total</strong></td><td class="ta-right"><strong>${this.money(cart.totals.total)}</strong></td></tr>
             </tbody>
           </table>
-          ${cart.adjustments.some(adjustment => adjustment.data?.limited) && this.config?.priceFloorNotice ? html`<p class="tc-muted small">${this.config.priceFloorNotice}</p>` : nothing}
+          ${cart.adjustments.some(adjustment => adjustment.data?.limited) && this.config?.priceFloorNotice ? html`<p class="tc-muted">${this.config.priceFloorNotice}</p>` : nothing}
           <p class="tc-muted small">Taxes and credits calculated at checkout.</p>
           <div class="d-g cols-2" style="gap: var(--spacer_h);">
             <a class="btn ta-center" href="/products/"><k-icon name="arrow" direction="left"></k-icon> Continue shopping</a>
