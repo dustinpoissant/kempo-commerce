@@ -4,6 +4,16 @@ All notable changes to `kempo-commerce` are documented in this file.
 
 ## [Unreleased]
 
+### Added (discounts)
+
+- **Discounts from other extensions combine on one rule.** A `totals:discounts` handler can push a row that says what it is, `data: { kind: 'fixed' | 'percent', value, stackable }` with a `lineId`, and leave out the amount. Commerce works out each row's amount per line: combinable discounts apply together (fixed amounts first, then the added percents off what is left), one that cannot be combined applies alone, the line gets whichever saves more, and the price never goes below the product's minimum price. `resolveUnitDiscounts` and `resolveDiscountRows` are exported. Rows that already carry an `amount` and no `kind` are unchanged.
+- **The minimum price** (kempo-products `minimumPrice`) is carried onto each cart line, and a line held back by it tells the cart, which shows the new `price_floor_notice` setting under the totals.
+- The cart shows one row per kind of discount or fee, adding up what it took across the lines.
+
+### Fixed (discounts)
+
+- **A discount on a line stays against that line on the order** (it was stored against no line, so tax and refunds could not tell which line it belonged to), and **a refund of a line returns what was paid for it**, after its discounts, not its full price.
+
 ### Changed (breaking)
 
 - **Quantity goes through kempo-products' ledger, and credits are granted here.** kempo-products no longer has purchases or holds, so placing an order takes its quantity as one ledger entry (`order:<id>`, every line or none), and an order that fails, expires or is cancelled adds the entry that undoes it, but only after the order itself has become `failed` or `cancelled`, so an order that was paid in the meantime never loses its quantity. Completing an order claims it as paid first (only one run can), then grants the credits its products give, once, as kempo-commerce under the order's id (it was kempo-products, so credits given to orders placed before this are not found when such an order is refunded). Refunding a whole order and restocking adds one entry that undoes the order's. The recovery sweep no longer expires holds, because there are none. The price check at the moment of taking quantity is gone: the cart is priced and checked a moment earlier, and reports a changed price or an unavailable product to the customer as a notice.

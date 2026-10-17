@@ -219,6 +219,18 @@ is written to the order's history.
 
 Nothing here stores a carrier, a tracking number or a rate.
 
+## Discounts
+
+Commerce creates no discounts; extensions (kempo-discounts, kempo-coupons) push them through `totals:discounts`, and commerce
+combines them so every extension follows one rule. A discount says what it is, `{ kind, value, stackable }`, with the line it is on:
+
+- the ones that can be combined (`stackable`) all apply together: every **fixed** amount comes off the unit price first, then the **percents are added up** and taken off what is left (a $50 car with $10 off, then 25% and 10%, is $26);
+- one that cannot be combined applies alone, and the line gets whichever saves more, that or the combination;
+- the unit price never goes below the product's **minimum price** (kempo-products' `minimumPrice`), or zero without one; percents round down, and the rows add up to the whole;
+- when the minimum price held a discount back, its rows carry `data.limited` and the cart shows the `price_floor_notice` setting.
+
+The cart shows one row per kind of discount, adding up the lines. A discount stays against its line on the order, so tax is worked out on what the customer pays, and **a refund of a line returns what was paid for it**, not its full price. `resolveUnitDiscounts` and `resolveDiscountRows` are exported for an extension that wants the same answer for a storefront price.
+
 ## Hooks
 
 Fired through kempo's `triggerHook`, named `kempo-commerce:<resource>:<event>`. **Guards** run before something
@@ -238,7 +250,7 @@ Every payload carries `actor`: the extension that made the change, or `''` for a
 | `kempo-commerce:cart:merged` | note | `{ from, into, userId }` | carry over your own cart data |
 | `kempo-commerce:cart:validate` | guard | `{ cart, notices }` | **add notices** (set `blocking`) for a regional restriction or a mixed-cart rule |
 | `kempo-commerce:cart:expired` | note | `{ cart }` | abandoned-cart emails |
-| `kempo-commerce:totals:discounts` | note | `{ cart or order, lines, adjustments, currency }` | push `{ type: 'discount', code, label, amount, lineId?, taxable?, source }`. Nothing here creates discounts; this is where a coupons extension plugs in |
+| `kempo-commerce:totals:discounts` | note | `{ cart or order, lines, adjustments, currency }` | push `{ type: 'discount', code, label, lineId, taxable?, source, data: { kind: 'fixed' | 'percent', value, stackable } }` and **leave out `amount`**: commerce works out every row's amount per line, together (see Discounts). A row that already has an `amount` and no `kind` is used as it is |
 | `kempo-commerce:totals:fees` | note | same | push `{ type: 'fee', ... }`: **shipping lands here** |
 | `kempo-commerce:totals:tax` | note | `{ cart or order, taxable, address, tax }` | replace `tax` (kempo-tax has already filled it in) |
 | `kempo-commerce:totals:computed` | note | `{ cart or order, totals }` | read the result |
@@ -362,6 +374,7 @@ user and needs no permission; `guest_checkout` governs guests.
 | `mini_cart_side` | `right` | Which side of the page the mini-cart opens from: left or right |
 | `mini_cart_open_on_add` | `false` | Open the mini-cart when something is added to the cart. Off by default: the "Added to your cart" toast confirms an add, and the cart is one click away |
 | `mini_cart_inject` | `true` | Put the mini-cart on every public page. Turn off to place <k-commerce-mini-cart> yourself. The cart button is not placed for you: add the **Cart** item to a menu |
+| `price_floor_notice` | A discount on this order was limited by the minimum price of a product. | Shown in the cart under the totals when a product's minimum price (kempo-products) held a discount back |
 | `add_to_cart_toast_action` | `mini-cart` | The **View cart** button on the confirmation shown after adding to the cart: `mini-cart` opens the mini-cart (the cart page when the page has none), `cart-page` goes to the cart page, `none` shows no button |
 | `mini_cart_hide_on_cart_pages` | `true` | Do not show the mini-cart on the cart page itself, which shows the same thing. It stays available on the checkout page, so an item can be changed or added without leaving |
 | `purchase_limit_per_user` | `10` | Checkout attempts one account can make in an hour. 0 turns the limit off |

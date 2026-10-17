@@ -175,14 +175,16 @@ const placeClaimed = async ({ cartId, userId, checkoutKey, billing, data, tender
         data: draft.data, cartId, checkoutKey, taxCalculationId: tax?.calculationId ?? null, ip, placedAt: now, updatedAt: now,
       }).returning();
 
+      /* The order's lines have their own ids, so a discount on a cart line is kept against the matching order line. */
+      const lineIds = new Map(cart.lines.map(line => [line.id, newId('ol')]));
       await tx.insert(kempoCommerceOrderLine).values(cart.lines.map((line, position) => ({
-        id: newId('ol'), orderId, position, productId: line.productId, slug: line.slug, name: line.name, selections: line.selections,
+        id: lineIds.get(line.id), orderId, position, productId: line.productId, slug: line.slug, name: line.name, selections: line.selections,
         optionLines: line.optionLines, unitPrice: line.unitPrice, quantity: line.quantity, lineTotal: line.lineTotal,
         tax: tax?.perLine?.[line.id] ?? 0, fulfillment: 'none', creditsGranted: line.creditsGranted ?? 0, creditsOnly: Boolean(line.creditsOnly), data: line.data,
       })));
 
       const adjustments = [
-        ...cart.adjustments.map(adjustment => ({ id: newId('adj'), orderId, lineId: null, type: adjustment.type, code: adjustment.code, label: adjustment.label, amount: adjustment.amount, taxable: adjustment.taxable, source: adjustment.source, data: adjustment.data })),
+        ...cart.adjustments.map(adjustment => ({ id: newId('adj'), orderId, lineId: lineIds.get(adjustment.lineId) ?? null, type: adjustment.type, code: adjustment.code, label: adjustment.label, amount: adjustment.amount, taxable: adjustment.taxable, source: adjustment.source, data: adjustment.data })),
         ...(totals.taxTotal ? [{ id: newId('adj'), orderId, lineId: null, type: 'tax', code: '', label: 'Tax', amount: totals.taxTotal, taxable: false, source: 'kempo-tax', data: {} }] : []),
       ];
       if(adjustments.length) await tx.insert(kempoCommerceOrderAdjustment).values(adjustments);

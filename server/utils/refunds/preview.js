@@ -24,7 +24,10 @@ import { getTender } from '../checkout/tenders.js';
 
 const COUNTED = ['issuing', 'issued', 'partial'];
 
-const lineGross = (order, line) => line.lineTotal + (order.pricesIncludeTax ? 0 : line.tax);
+/* What the customer paid for a line: its total less the discounts taken off it, plus its tax unless prices include it. */
+const lineGross = (order, line) => line.lineTotal
+  + order.adjustments.filter(adjustment => adjustment.type === 'discount' && adjustment.lineId === line.id).reduce((sum, adjustment) => sum + adjustment.amount, 0)
+  + (order.pricesIncludeTax ? 0 : line.tax);
 
 /* What earlier refunds already returned for a line (or the fees), from their records. */
 const returnedFor = (order, key) => order.refunds

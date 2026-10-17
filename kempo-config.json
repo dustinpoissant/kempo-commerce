@@ -139,6 +139,12 @@
       "description": "Whether refunded products go back into quantity by default. It can be changed for each refund"
     },
     {
+      "name": "price_floor_notice",
+      "value": "A discount on this order was limited by the minimum price of a product.",
+      "type": "string",
+      "description": "Shown in the cart under the totals when a product's minimum price held a discount back, so the customer is not left wondering why it is smaller than advertised"
+    },
+    {
       "name": "refund_policy",
       "value": "",
       "type": "string",

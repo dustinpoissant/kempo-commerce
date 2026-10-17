@@ -55,6 +55,7 @@ export const VALIDATORS = {
   order_number_start: number('The first order number', 0, 1000000000),
   restock_on_refund: flag('Restock on refund'),
   refund_policy: text('The refund policy', 5000),
+  price_floor_notice: text('The minimum price notice', 300),
   mini_cart_side: value => ['left', 'right'].includes(value) ? [null, value] : [{ code: 400, msg: 'The mini-cart side is left or right' }, null],
   mini_cart_open_on_add: flag('Open the mini-cart on add'),
   add_to_cart_toast_action: value => ['mini-cart', 'cart-page', 'none'].includes(value) ? [null, value] : [{ code: 400, msg: 'The View cart button opens the mini-cart or the cart page, or is left off' }, null],

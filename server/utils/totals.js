@@ -1,4 +1,5 @@
 import { EVENTS, notify } from './hooks.js';
+import { resolveDiscountRows } from './discounts.js';
 
 /*
   The one place totals are calculated, used by the cart, the mini-cart, the checkout and the order, so
@@ -20,7 +21,8 @@ const KINDS = ['discount', 'fee'];
 
 /*
   Other extensions contribute discounts and fees through hooks: `{ type, code, label, amount, lineId?,
-  taxable?, source }`. Commerce does not know what a coupon or a shipping rate is; it knows how to sum,
+  taxable?, source }`. A discount may instead say what it is, `data: { kind: 'fixed' | 'percent', value, stackable }` with a
+  `lineId`, and leave `amount` out: the amounts are then worked out per line, together, by discounts.js. Commerce does not know what a coupon or a shipping rate is; it knows how to sum,
   display, tax and refund an adjustment. Anything malformed is dropped rather than trusted.
 */
 export const collectAdjustments = async ({ cart, order, lines, currency }) => {
@@ -30,7 +32,8 @@ export const collectAdjustments = async ({ cart, order, lines, currency }) => {
   await notify(EVENTS.totalsDiscounts, payload);
   await notify(EVENTS.totalsFees, payload);
 
-  return adjustments
+  /* A discount row that says what it is (a fixed amount or a percent, and whether it combines) gets its amount here, per line. */
+  return resolveDiscountRows({ adjustments, lines: payload.lines })
     .filter(adjustment => adjustment && KINDS.includes(adjustment.type) && Number.isSafeInteger(adjustment.amount) && typeof adjustment.label === 'string' && adjustment.label)
     .map(adjustment => ({
       type: adjustment.type,

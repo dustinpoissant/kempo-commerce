@@ -10,7 +10,7 @@ import { getSettings, saveSettings } from '/commerce/sdk.js';
 */
 
 const SECTIONS = [
-  { title: 'Your store', names: ['site_url', 'guest_checkout', 'allow_account_creation', 'refund_policy', 'restock_on_refund'] },
+  { title: 'Your store', names: ['site_url', 'guest_checkout', 'allow_account_creation', 'refund_policy', 'restock_on_refund', 'price_floor_notice'] },
   { title: 'Carts', names: ['max_lines_per_cart', 'max_quantity_per_line', 'cart_expiry_days', 'cart_purge_days'] },
   { title: 'Orders', names: ['pending_expiry_minutes', 'order_number_prefix', 'order_number_padding', 'order_number_start'] },
   { title: 'The mini-cart', names: ['mini_cart_inject', 'mini_cart_side', 'mini_cart_open_on_add', 'add_to_cart_toast_action', 'mini_cart_hide_on_cart_pages'] },
@@ -18,7 +18,7 @@ const SECTIONS = [
 ];
 
 const TITLES = {
-  site_url: 'Site address', guest_checkout: 'Guest checkout', allow_account_creation: 'Offer to create an account', refund_policy: 'Refund policy',
+  site_url: 'Site address', guest_checkout: 'Guest checkout', allow_account_creation: 'Offer to create an account', refund_policy: 'Refund policy', price_floor_notice: 'Minimum price notice',
   restock_on_refund: 'Restock refunded products', max_lines_per_cart: 'Most lines in a cart', max_quantity_per_line: 'Most of one product', cart_expiry_days: 'Days until a cart is abandoned',
   cart_purge_days: 'Days until an abandoned cart is deleted', pending_expiry_minutes: 'Minutes to pay', order_number_prefix: 'Order number prefix', order_number_padding: 'Order number digits',
   order_number_start: 'First order number', mini_cart_inject: 'Show the mini-cart on every page', mini_cart_side: 'Mini-cart side', mini_cart_open_on_add: 'Open on add', add_to_cart_toast_action: 'View cart button',

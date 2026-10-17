@@ -26,6 +26,7 @@ const TOP_RIGHT = 'border-top: 1px solid var(--c_border); border-top-right-radiu
 export default class Cart extends ShadowComponent {
   static properties = {
     cart: { state: true },
+    config: { state: true },
     busy: { state: true },
     error: { state: true },
   };
@@ -33,6 +34,7 @@ export default class Cart extends ShadowComponent {
   constructor(){
     super();
     this.cart = null;
+    this.config = null;
     this.busy = false;
     this.error = '';
     this.money = minor => String(minor);
@@ -55,8 +57,20 @@ export default class Cart extends ShadowComponent {
   }
 
   start = async () => {
-    this.money = (await loadFormat()).money;
+    const format = await loadFormat();
+    this.money = format.money;
+    this.config = format.config;
     await this.refresh();
+  };
+
+  /* The cart shows one row per kind of discount or fee, adding up what it took across the lines. */
+  adjustmentRows = adjustments => {
+    const rows = new Map();
+    for(const adjustment of adjustments){
+      const key = `${adjustment.type}|${adjustment.label}`;
+      rows.set(key, { ...adjustment, amount: (rows.get(key)?.amount ?? 0) + adjustment.amount });
+    }
+    return [...rows.values()];
   };
 
   refresh = async () => {
@@ -139,10 +153,11 @@ export default class Cart extends ShadowComponent {
           <table class="mb">
             <tbody>
               <tr><td style=${`background-color: var(--c_bg__alt); ${TOP_LEFT}`}><strong>Subtotal</strong></td><td class="ta-right" style=${TOP_RIGHT}>${this.money(cart.totals.subtotal)}</td></tr>
-              ${cart.adjustments.map(adjustment => html`<tr><td style="background-color: var(--c_bg__alt);"><strong>${adjustment.label}</strong></td><td class="ta-right">${this.money(adjustment.amount)}</td></tr>`)}
+              ${this.adjustmentRows(cart.adjustments).map(adjustment => html`<tr><td style="background-color: var(--c_bg__alt);"><strong>${adjustment.label}</strong></td><td class="ta-right">${this.money(adjustment.amount)}</td></tr>`)}
               <tr><td style="background-color: var(--c_bg__alt);"><strong>Total</strong></td><td class="ta-right"><strong>${this.money(cart.totals.total)}</strong></td></tr>
             </tbody>
           </table>
+          ${cart.adjustments.some(adjustment => adjustment.data?.limited) && this.config?.priceFloorNotice ? html`<p class="tc-muted small">${this.config.priceFloorNotice}</p>` : nothing}
           <p class="tc-muted small">Taxes and credits calculated at checkout.</p>
           <div class="d-g cols-2" style="gap: var(--spacer_h);">
             <a class="btn ta-center" href="/products/"><k-icon name="arrow" direction="left"></k-icon> Continue shopping</a>

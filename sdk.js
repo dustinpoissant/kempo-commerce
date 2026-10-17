@@ -39,6 +39,7 @@ export {
 } from './server/utils/carts/cart.js';
 
 export { computeTotals, collectAdjustments } from './server/utils/totals.js';
+export { resolveUnitDiscounts, resolveDiscountRows } from './server/utils/discounts.js';
 
 export { startCheckout, accountRules } from './server/utils/checkout/quote.js';
 export { placeOrder } from './server/utils/checkout/place.js';

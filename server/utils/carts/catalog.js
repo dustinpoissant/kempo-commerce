@@ -89,6 +89,7 @@ export const checkLine = ({ row, product, limits, credits }) => {
       optionLines: priced.lines,
       selections: priced.selections,
       blocked: false,
+      minimumPrice: product.minimumPrice ?? null,
       creditsGranted: credits.enabled ? product.creditsGranted || 0 : 0,
       creditsOnly: credits.enabled ? Boolean(product.creditsOnly) : false,
       credits: quote,
