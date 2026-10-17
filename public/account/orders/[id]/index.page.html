@@ -1,0 +1,13 @@
+<!--
+template: default
+-->
+<page title="Your order">
+<content>
+  <script type="module" src="/commerce/components/Order.js"></script>
+  <p><a href="/account/orders/" class="btn">Order history</a></p>
+  <k-commerce-order>
+    <div slot="panels"><fragment name="commerce-account-order-panels"></fragment></div>
+    <div slot="actions"><fragment name="commerce-account-order-actions"></fragment></div>
+  </k-commerce-order>
+</content>
+</page>

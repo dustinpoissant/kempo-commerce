@@ -1,0 +1,23 @@
+<!--
+	owner: kempo-commerce
+-->
+<page template="email" title="Your order is complete">
+<content>
+<h2>Your order is complete</h2>
+<if condition="name"><p>Hi {{name}},</p></if>
+<if condition="!name"><p>Hello,</p></if>
+<p>Your order {{orderNumber}} is complete. Thank you for shopping with {{siteName}}.</p>
+<table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+<foreach in="lines" as="line">
+<tr><td style="padding: 8px 0; border-bottom: 1px solid;">{{line.name}} &times; {{line.quantity}}</td><td style="padding: 8px 0; border-bottom: 1px solid; text-align: right;">{{line.total}}</td></tr>
+</foreach>
+<tr><td style="padding: 8px 0;">Subtotal</td><td style="padding: 8px 0; text-align: right;">{{subtotal}}</td></tr>
+<if condition="hasFees"><tr><td style="padding: 8px 0;">Fees</td><td style="padding: 8px 0; text-align: right;">{{feeTotal}}</td></tr></if>
+<if condition="hasTax"><tr><td style="padding: 8px 0;">Tax</td><td style="padding: 8px 0; text-align: right;">{{taxTotal}}</td></tr></if>
+<tr><td style="padding: 8px 0; font-weight: 700;">Total</td><td style="padding: 8px 0; text-align: right; font-weight: 700;">{{total}}</td></tr>
+</table>
+<div style="text-align: center; margin: 24px 0;">
+	<a href="{{orderLink}}" style="display: inline-block; padding: 14px 28px; background-color: rgb(51, 102, 255); color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">View your order</a>
+</div>
+</content>
+</page>

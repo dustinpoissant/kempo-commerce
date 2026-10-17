@@ -1,9 +1,17 @@
 # kempo-commerce — PLAN
 
-> Status: **not built.** This is the complete design for the extension that turns a kempo-products
-> catalog into a store: cart, checkout, orders, order history, cancellation and refund requests, and
-> the public pages and components for all of it. It is the brief for whoever builds it, and the
-> place to add notes when a decision or a gap turns up in another extension.
+> Status: **built (see section 25), not yet committed or published.** Milestones 0 to 10 are implemented
+> and tested. This document is the design; section 25 lists where the build differs from it and what is
+> still to do. The README describes how it works now.
+
+> **The yardstick is WooCommerce core.** Where this plan and WooCommerce's core behaviour differ, the
+> default is to do what WooCommerce does. Section 23 records each decision made that way. Beyond Woo
+> core, this plan adds only what kempo's own extensions require (tenders, the credits warning on
+> refunds) and what guest checkout makes necessary (card-testing limits).
+>
+> **Out of scope:** discounts, coupons, sales and promotions (a later extension, plugged into the
+> `totals:*` hooks); shipping; categories (a catalogue concern, owned entirely by kempo-products and
+> its extensions; commerce neither stores nor requires them).
 
 > **Upstream changes are allowed.** Every dependency with `kempo` in its name is owned by the same
 > person, and the goal is to keep improving all of them. If the work here needs a change in one of
@@ -35,7 +43,7 @@ Contents
 20. [What kempo-shipping needs from this](#20-what-kempo-shipping-needs-from-this)
 21. [Testing](#21-testing)
 22. [Build order](#22-build-order)
-23. [Open questions](#23-open-questions)
+23. [Decisions, and what is left to verify](#23-decisions-and-what-is-left-to-verify)
 24. [Conventions an agent must follow](#24-conventions-an-agent-must-follow)
 
 ---
@@ -45,12 +53,14 @@ Contents
 **Is:** the part of selling that no other extension does.
 
 - A **cart** that works for visitors and signed-in customers, and survives signing in.
-- A **checkout** that prices the cart on the server, applies tax, store credit and credits, takes
-  payment, and creates an **order**.
+- A **checkout**, for guests and signed-in customers, that prices the cart on the server, applies tax,
+  store credit and credits, takes payment, and creates an **order**.
 - **Orders**, with a status, a history of everything that happened to them, and notes.
-- **Order history** for customers, and a way to **request a cancellation or a refund**.
-- **Refund approval** for administrators, including the warning about credits that were already
-  spent (section 10).
+- **Order history** for customers, who can cancel an order that is not yet paid. Guests reach their
+  order through a signed link.
+- **Refunds** issued by administrators from the order page, including the warning about credits that
+  were already spent (section 10). Like WooCommerce, customers do not file refund requests.
+- **Emails** through kempo's existing email system (section 9).
 - The **public pages** and **components** for all of it, including a mini-cart in a `k-aside`.
 - **Hooks and an SDK** thick enough that shipping, coupons, subscriptions, digital delivery,
   reviews and anything else can be built as separate extensions on top.
@@ -65,9 +75,10 @@ Contents
 | The in-app currency (game coins, points) | kempo-credits |
 | A money balance a customer holds | kempo-store-credit |
 | **Shipping**: addresses to ship to, methods, rates, labels, **tracking** | **kempo-shipping** (later; section 20) |
-| Coupons and discounts | kempo-coupons (later; plugs into the checkout hooks) |
+| Coupons, discounts, sales, promotions | kempo-coupons (later; plugs into the checkout hooks). **Nothing is built here.** |
 | Subscriptions, digital delivery, reviews, wishlists | their own later extensions |
-| Product categories as a taxonomy | kempo-product-categories (see section 11, open question 1) |
+| Categories, tags, types, filtering | The catalogue (kempo-products and its extensions). Commerce has no knowledge of them. |
+| Sending email, rendering templates | kempo core (`sendEmailFromTemplate`). Commerce only supplies templates and data. |
 
 The target is parity with WooCommerce's core, built as small extensions around it.
 
@@ -97,7 +108,7 @@ The target is parity with WooCommerce's core, built as small extensions around i
 | | Extensions |
 |---|---|
 | **Hard** (`dependencies` in kempo-config.json) | kempo-products, kempo-payments |
-| **Optional at runtime** | kempo-tax, kempo-store-credit, kempo-credits, kempo-media (pictures), kempo-product-categories |
+| **Optional at runtime** | kempo-tax, kempo-store-credit, kempo-credits, kempo-media (pictures) |
 
 Peer ranges to set when building: kempo-payments ≥ 0.1.10 (declines are reported, and
 `payment:refunding` exists), kempo-products ≥ the release carrying the stock holds in section 4.
@@ -118,17 +129,21 @@ and only *commit* the purchase once the money has arrived. Without that there ar
 
 | Function | Does |
 |---|---|
-| `holdStock({ ref, lines, expiresInSeconds })` | Takes the stock (all or nothing, like `recordPurchase`) and records a **hold**. Nothing is granted and no purchase is recorded. |
+| `holdQuantity({ ref, lines, expiresInSeconds })` | Takes the stock (all or nothing, like `recordPurchase`) and records a **hold**. Nothing is granted and no purchase is recorded. |
 | `commitHold(ref, { userId })` | Turns a hold into a recorded purchase: fires `purchase:recorded`, grants credits. Idempotent. |
 | `releaseHold(ref)` | Returns the stock. Idempotent. Also what an expired hold does. |
 
 A hold is a row, so a crash can be cleaned up by a sweep (`expireHolds`). `recordPurchase` stays as
 it is for callers that do not need two phases (the admin's "record a sale made elsewhere").
 
+`holdQuantity`, `commitHold` and `recordPurchase` must accept a **null `userId`** (a guest's purchase);
+a product that grants credits cannot be bought by a guest, which is enforced by commerce (section 8.5)
+and not here. Milestone 0 starts by checking what they do with null today.
+
 Until this exists, commerce must not be built past the cart.
 
 **kempo-inventory already has it.** Items there now have `quantity` (available) and `held`, with
-`holdStock`, `releaseStock` and `consumeHeld` (all or nothing across several items, each a movement).
+`holdQuantity`, `releaseQuantity` and `consumeHeld` (all or nothing across several items, each a movement).
 When kempo-products gains holds, the kempo-products-inventory connector should mirror them: holding
 a product holds its materials, committing consumes them, releasing gives them back — so what is
 reserved for an unpaid order is reserved all the way down.
@@ -156,14 +171,13 @@ columns (`IF NOT EXISTS`), because kempo's installer makes columns and primary k
 |---|---|---|
 | `kempoCommerceCart` | A cart | `id`, `token` (hash; the cookie), `userId` (null for a visitor), `currency`, `status` (`open`, `converted`, `abandoned`, `merged`), `data` (extension data), `updatedAt`, `expiresAt` |
 | `kempoCommerceCartLine` | A line in a cart | `cartId`, `productId`, `quantity`, `selections` (option → choice), `data` (extension data), `addedAt` |
-| `kempoCommerceOrder` | An order | `id`, `number` (human, sequential), `userId`, `email`, `status`, `currency`, `subtotal`, `discountTotal`, `feeTotal`, `taxTotal`, `total`, `paidTotal`, `refundedTotal`, `billing` (address), `shown` (what the customer was shown before paying), `data`, `cartId`, `checkoutKey`, `placedAt`, `paidAt`, `completedAt`, `cancelledAt` |
+| `kempoCommerceOrder` | An order | `id`, `number` (human, sequential), `userId` (**null for a guest**), `email`, `orderKey` (random; the guest's access link), `status`, `currency`, `subtotal`, `feeTotal`, `taxTotal`, `total`, `paidTotal`, `refundedTotal`, `billing` (address), `shown` (what the customer was shown before paying), `data`, `cartId`, `checkoutKey`, `placedAt`, `paidAt`, `completedAt`, `cancelledAt` |
 | `kempoCommerceOrderLine` | A line as sold | `orderId`, `productId`, `slug`, `name`, `selections`, `unitPrice`, `quantity`, `lineTotal`, `tax`, `fulfillment` (`none`, `pending`, `done`), `refundedQuantity`, `creditsGranted`, `data` |
-| `kempoCommerceOrderAdjustment` | A discount, fee or tax on an order | `orderId`, `lineId` (null for the whole order), `type` (`discount`, `fee`, `tax`), `code`, `label`, `amount` (signed), `source` (extension name), `data` |
+| `kempoCommerceOrderAdjustment` | A fee, tax or (from a later extension) discount on an order | `orderId`, `lineId` (null for the whole order), `type` (`discount`, `fee`, `tax`), `code`, `label`, `amount` (signed), `source` (extension name), `data`. Commerce itself creates only `tax`; `fee` comes from shipping and similar, `discount` from the future coupons extension. |
 | `kempoCommerceTender` | One way an order was (or is being) paid | `orderId`, `kind` (`card`, `store-credit`, `credits`, an extension's), `amount`, `status` (`pending`, `applied`, `reversed`, `refunded`), `reference` (payment id, entry id), `idempotencyKey`, `data` |
 | `kempoCommerceEvent` | One thing that happened to an order | `orderId`, `type`, `actor` (user id or extension), `data`, `createdAt` — append-only |
 | `kempoCommerceNote` | A note on an order | `orderId`, `authorId`, `body`, `visibleToCustomer`, `createdAt` |
-| `kempoCommerceRequest` | A customer's cancellation or refund request | `orderId`, `kind` (`cancel`, `refund`), `status` (`requested`, `approved`, `declined`, `completed`, `withdrawn`), `reason`, `message`, `lines` (line id → quantity), `decidedBy`, `decisionNote`, `createdAt`, `decidedAt` |
-| `kempoCommerceRefund` | A refund that was issued | `orderId`, `requestId`, `amount`, `lines`, `tenders` (how it was returned), `restock`, `credits` (`owe`/`zero`/none), `issuedBy`, `createdAt` |
+| `kempoCommerceRefund` | A refund that was issued | `orderId`, `amount`, `lines` (line id → quantity), `reason`, `tenders` (how it was returned), `restock`, `credits` (`owe`/`zero`/none), `issuedBy`, `createdAt` |
 | `kempoCommerceCounter` | The order number counter | one row, locked to increment |
 
 **Why a Tender.** Card, store credit and credits are all "a way the order was paid", with the same
@@ -178,10 +192,11 @@ a later extension (a gift card, a wallet) is a new tender kind and not a change 
  (cart) ─► pending_payment ─► processing ─► completed
                        │            │            │
                        ▼            ▼            ▼
-                   cancelled    on_hold    partially_refunded ─► refunded
-                                               ▲
-                       cancelled ◄─────────────┘  (a cancellation of a paid order is a refund)
+                   cancelled    on_hold       refunded   (only when refunded in full)
 ```
+
+These are WooCommerce's seven statuses. A **partial refund does not change the status**; it shows as
+refund rows on the order and in `refundedTotal`, exactly as in WooCommerce.
 
 | Status | Means |
 |---|---|
@@ -190,8 +205,8 @@ a later extension (a gift card, a wallet) is a new tender kind and not a change 
 | `completed` | Paid and every line is fulfilled or needs no fulfilment. A credit pack goes `pending_payment` → `completed`. |
 | `on_hold` | An administrator, or an extension, has paused it. |
 | `failed` | Payment failed or expired. Spends reversed, stock released. Terminal. |
-| `cancelled` | Cancelled before it was paid or fulfilled, with nothing to refund or after a full refund. Terminal. |
-| `partially_refunded`, `refunded` | Money has gone back. Orthogonal to fulfilment: the order keeps its line fulfilment states. |
+| `cancelled` | Cancelled before it was paid, by the customer or an administrator. Terminal. |
+| `refunded` | Refunded in full. Terminal. The order keeps its line fulfilment states. |
 
 Transitions are made only through the SDK (`setOrderStatus` and the functions that wrap it), which
 checks the move is allowed, writes the event, and fires the hooks. Extensions can add their own
@@ -240,7 +255,7 @@ the checkout and the order, so what is shown is always what is charged.
 ```
  line total      = getPrice(...).unit × quantity                      (kempo-products)
  subtotal        = Σ line totals
- discounts       = Σ adjustments of type discount                      (negative; coupons, promos)
+ discounts       = Σ adjustments of type discount                      (always 0 until a coupons extension exists)
  fees            = Σ adjustments of type fee                           (shipping, handling, gift wrap)
  taxable amount  = per line: line total − its discounts (+ fees if taxed)
  tax             = kempo-tax's calculateTax over the taxable lines     (or none)
@@ -285,7 +300,7 @@ another currency is not applied.
    |---|---|---|
    | 1 | Re-prices and re-validates; refuses if anything changed since the quote (the customer is shown the change and confirms) | — |
    | 2 | Creates the order, `pending_payment`, with `shown` = exactly what was displayed, and an event | cancel it |
-   | 3 | `holdStock` for every line (section 4.1) | `releaseHold` |
+   | 3 | `holdQuantity` for every line (section 4.1) | `releaseHold` |
    | 4 | Applies **credits** (`spendCredits`, key `order:<id>:credits`) | `reverseSpend` |
    | 5 | Applies **store credit** (`spendCredit` partial, key `order:<id>:store-credit`) | `reverseSpend` |
    | 6 | Creates the **payment** for what is left (kempo-payments, `owner: 'kempo-commerce'`, `reference: <order id>`) — or none, if nothing is left | cancel the payment |
@@ -310,7 +325,9 @@ own account and buy something.
 
 ### 8.3 Recovery and expiry
 
-A sweep (a scheduled job; kempo's own mechanism, checked when building) runs every minute:
+A sweep runs every minute. **kempo has no scheduler today** (no recurring-job mechanism was found in
+the core; only the realtime hub keeps timers), so milestone 0 either finds how extensions run
+recurring work or adds that to kempo. The same mechanism runs the cart-expiry sweep:
 
 - `pending_payment` orders older than `pending_expiry_minutes` → `failed`: cancel the payment, reverse
   tenders in reverse order, release the hold.
@@ -325,6 +342,26 @@ customer); webhook delivered twice; webhook arrives before the browser returns; 
 out the same cart; the last item bought by two customers at once; the process dying after each
 numbered step; a price changing between quote and place; the customer's store credit being spent
 elsewhere in between.
+
+### 8.5 Guests and accounts
+
+Modelled on WooCommerce: a guest is **not a kempo user**. kempo needs no anonymous-login support for
+this. The cart is a cookie token, and the order carries the email and an `orderKey`.
+
+- **Guest checkout** is on by default (`guest_checkout`), as in WooCommerce. The checkout form asks for
+  an email; when `allow_account_creation` is on there is a "Create an account" checkbox, and the
+  account is created with a set-password email (needs kempo to create a user without a password; if it
+  cannot, that is a small upstream addition).
+- **Guests pay by card only.** Store credit and credits belong to an account, so those tenders are not
+  offered to a guest.
+- **A cart needs an account when it contains a product that grants credits** (a credit pack), because
+  a guest cannot receive them. The checkout says why and offers sign-in or registration.
+- **Order access.** A guest reaches their order through `/commerce/order/<id>/received/?key=<orderKey>`,
+  shown after placing and sent in the confirmation email. The key is compared in constant time.
+- **Linking.** When someone registers or signs in with an email that has guest orders, those orders
+  are attached to the account **only once the email is verified**, as WooCommerce does.
+- **Abuse protection** cannot lean on "signed-in only" any more: the per-IP limit and the decline
+  cool-down (section 19) carry it.
 
 ## 9. Orders
 
@@ -343,25 +380,34 @@ render it; the customer sees only events marked customer-visible.
 **Notes.** Administrators add notes to an order, private or visible to the customer.
 
 **Customer access.** An order belongs to its `userId`; the customer routes only ever use the
-session's user. A visitor who checked out as a guest (if enabled; open question 3) gets a signed
-link in their confirmation email.
+session's user. A guest's order is reached only by its `orderKey` (section 8.5).
 
 **Fulfilment.** Each line has `fulfillment`: `none`, `pending` or `done`. Commerce changes it only
 through `setLineFulfillment`, called by whatever fulfils (shipping, digital delivery, an
 administrator ticking a box). The order becomes `completed` when no line is `pending`. Commerce
 itself does nothing physical.
 
-**Emails and notifications.** Customer emails (order received, paid, request received, request
-decided, refund issued) use kempo's email sending when it is configured; administrators get kempo
-notifications for new orders and new requests. Both are driven from the hooks in section 14 and
-templated through `email:context` so other extensions can add to them. (Verify kempo's email SDK
-when building; if there is none, this is a gap to fill upstream.)
+**Emails and notifications.** Commerce uses the email system kempo already has:
+`sendEmailFromTemplate({ to, subject, template, data })` from `kempo/sdk` (Resend today, other
+providers later; commerce never names a provider). Commerce adds **templates and data, nothing else**.
+The set is WooCommerce's: new order (to the administrator), order received / on-hold, processing,
+completed, refunded (full or partial), failed, and a customer note. Administrators also get kempo
+notifications for new orders and refunds left partially issued.
+
+Each email is sent from the matching hook (section 14), with `order:email_context` letting other
+extensions add to the data. A failed send is logged and recorded as an order event; it never fails
+the order.
+
+**Gap to fix upstream:** `sendEmailFromTemplate` finds a template only in the consumer's
+`templates/emails` or kempo's own `app-templates/emails`, so an extension has no place to ship its
+templates. Milestone 10 needs a small kempo change, for example extensions registering a template
+directory that is searched between the two, backwards-compatible and with tests.
 
 ## 10. Cancellation and refunds
 
 ### 10.1 Principles
 
-- **Refunds are approved by an administrator.** There is no automatic refund path for a paid
+- **Refunds are issued by an administrator.** There is no automatic refund path for a paid
   order.
 - **Spent credits are never refunded as money**, bought or earned.
 - A refund goes back **to where the money came from, tender by tender**: card money to the card
@@ -371,26 +417,21 @@ when building; if there is none, this is a gap to fill upstream.)
 
 ### 10.2 What a customer can do
 
-| Situation | Customer action | Result |
-|---|---|---|
-| Order is `pending_payment` | **Cancel** | Immediate, no approval: nothing was paid. Tenders reversed, hold released. |
-| Paid, nothing fulfilled yet | **Request cancellation** | A request, `kind: cancel`, for the whole order or chosen lines. |
-| Fulfilled, within `refund_window_days` | **Request a refund** | A request, `kind: refund`, for chosen lines and quantities, with a reason and message. |
-| Outside the window, or a product marked non-refundable | — | The page says so and why; no request is possible (an administrator can still refund from the admin). |
-
-The request form asks for lines and quantities, a reason from a configurable list, and a free
-message. The customer can **withdraw** a request until it is decided. They see its status on the
-order page and are told by email when it is decided.
+WooCommerce's behaviour: a customer can **cancel an order that has not been paid** (`pending_payment`,
+or `failed`), from their order page, immediately and without approval. Tenders are reversed and the
+hold is released. There is **no refund or cancellation request** for a paid order: WooCommerce core has
+none, and neither does this extension. The customer contacts the store, and an administrator issues the
+refund from the order page. (A request workflow, if wanted later, is its own extension on the
+`refund:*` hooks and `refundOrder`.)
 
 ### 10.3 What an administrator does
 
-The **Requests** queue lists open requests with the order, the customer, the lines, the reason and the
-age. Opening one is its own page. Approving it runs this, in order:
+On the order page, **Refund** opens its own page (`.../refund/?order=`), as in WooCommerce: choose lines
+and quantities or enter an amount, add a reason, and choose what happens. Issuing it runs this, in order:
 
-1. **Preview.** Compute the refund: per line, the amount (unit price × quantity, less its share of
-   discounts, plus its tax), and per tender how it will be returned. Show it, with a **restock**
-   checkbox per line (default from a setting) and a destination choice for the card portion (card, or
-   store credit).
+1. **Preview.** Compute the refund: per line, the amount (unit price × quantity, plus its tax), and per
+   tender how it will be returned. Show it, with a **restock** checkbox per line (default from a
+   setting) and a destination choice for the card portion (card, or store credit).
 2. **Credits warning.** For every product in the refund that **gave credits**, call kempo-credits'
    `previewClawBack({ reference: { owner: 'kempo-products', ref: <purchase ref> }, amount })`.
    If `shortfall > 0` for any of them the administrator **must decide before continuing**:
@@ -409,8 +450,9 @@ age. Opening one is its own page. Approving it runs this, in order:
    (`reverseSpend`/refund) → return store credit (`addCredit`) → refund the card portion at the
    processor (kempo-payments; its own `payment:refunding` guard may refuse) → reverse the tax
    (kempo-tax) → return stock if `restock` (kempo-products `reversePurchase` for the lines) → write
-   the refund, events, tender statuses, the order's `refundedTotal` and status.
-4. **Decline.** An administrator can decline with a note the customer sees.
+   the refund, events, tender statuses, the order's `refundedTotal`, and the status (`refunded` only
+   when the whole order has been refunded; otherwise unchanged).
+4. **Email.** The customer gets the refund email.
 
 If a step fails after an earlier one succeeded, the refund is left **`partially issued`** with exactly
 what was done and what was not, and an administrator finishes or corrects it from the order page; it
@@ -432,24 +474,22 @@ buyer owing the rest without asking. For a purchase that belongs to an order, th
 ## 11. Public pages
 
 Extension pages live under the public scope (`/commerce/…`). Nicer top-level aliases (`/cart/`,
-`/shop/`) are a kempo-server route-mapping concern and are listed in the open questions.
+`/checkout/`, `/account/orders/`) are provided the way WooCommerce provides `/cart`, `/checkout` and
+`/my-account`: a route-mapping setting in kempo-server that maps a short address to the extension page
+(an upstream change; section 23). The catalogue's own address (`/products/`) is kempo-products' business.
 
 | Page | Route | What it is |
 |---|---|---|
-| **Shop** | `/commerce/shop/` | The product list with the categories as a sidebar (collapses on mobile), search, sort and the filters kempo-products offers. Uses `<k-prod-list>` underneath and adds add-to-cart to each card through `products-list-extra`. |
-| **Category** | `/commerce/category/<slug>/` | The same list, scoped to one category, with its description and breadcrumb. |
 | **Product details** | `/products/<slug>/` (kempo-products' own page) | Not duplicated. Commerce fills the page's `actions` slot with **quantity, the options' validity, add to cart and a buy-now button**, shows stock/availability messages, and the credits lines products already shows. Related-products and reviews are fragments other extensions can fill. |
-| **Cart** | `/commerce/cart/` | Lines with picture, name, selections, unit price, quantity stepper, remove, line total; notices; discount and fee rows; subtotal; **proceed to checkout**; continue shopping. Empty state. |
+| **Cart** | `/commerce/cart/` | Lines with picture, name, selections, unit price, quantity stepper, remove, line total; notices; fee rows (when an extension adds any); subtotal; **proceed to checkout**; continue shopping (a link to the catalogue's own list page). Empty state. |
 | **Checkout** | `/commerce/checkout/` | One page, in sections: contact and billing, extension fields, store credit and credits (when available), order review with the refund policy, payment. Shows a stable summary on the side. Handles the zero-total path. |
-| **Order received** | `/commerce/order/<id>/received/` | After placing: status, what was paid, what happens next, credits granted. Polls until the payment is confirmed. |
+| **Order received** | `/commerce/order/<id>/received/` | The "thank you" page; a guest reaches it with `?key=<orderKey>`. After placing: status, what was paid, what happens next, credits granted. Polls until the payment is confirmed. |
 | **Order history** | `/commerce/account/orders/` | Signed-in only. A list of the customer's orders with number, date, status, total, and a link. Paginated. |
-| **Order details** | `/commerce/account/orders/<id>/` | Lines, adjustments, tax, tenders, status, the visible history and notes, and the **actions**: cancel (if unpaid), **request cancellation**, **request refund**, withdraw a request. |
-| **Request cancellation / refund** | `/commerce/account/orders/<id>/request/` | The form from section 10.2, on a page of its own. |
+| **Order details** | `/commerce/account/orders/<id>/` | Lines, adjustments, tax, tenders, status, the visible history and notes, and and the **action**: cancel (only while unpaid). |
 
-**Categories.** Commerce does not own a taxonomy (open question 1). It reads categories from an
-interface — `getCategories()`, `getProductCategories(productId)`, `getCategoryTree()` — implemented by
-kempo-product-categories when installed. With none installed the shop page falls back to product
-**types** and **tags** as the sidebar, so the shop works on day one.
+**Add to cart** lives on the catalogue's pages, not on pages of commerce: kempo-products' list and detail
+pages expose `products-list-extra` and the `actions` slot (section 4.2), and commerce fills them. Commerce has no
+shop, category or search page and no knowledge of categories, tags or types.
 
 **All pages** are server-checked, work without JavaScript for reading (cart contents, order list),
 meet accessibility basics (labelled controls, announced updates with `aria-live`, focus management when
@@ -457,24 +497,24 @@ the mini-cart opens), and use only kempo-css utility classes.
 
 ## 12. The mini-cart
 
-`<k-com-mini-cart>` — a cart that opens from the side without leaving the page.
+`<k-commerce-mini-cart>` — a cart that opens from the side without leaving the page.
 
 ```html
 <script type="module" src="/commerce/components/MiniCart.js"></script>
-<k-com-mini-cart></k-com-mini-cart>                   <!-- left, the default -->
-<k-com-mini-cart side="right"></k-com-mini-cart>      <!-- right -->
+<k-commerce-mini-cart></k-commerce-mini-cart>                   <!-- left, the default -->
+<k-commerce-mini-cart side="right"></k-commerce-mini-cart>      <!-- right -->
 ```
 
-- It is a **`k-aside`** (`side="left"` by default, `"right"` by attribute or the `mini_cart_side`
+- It is a **`k-aside`** (`side="right"` by default, `"left"` by attribute or the `mini_cart_side`
   setting; `main="overlay"`, `overlay-close`, `esc-close`). kempo-ui's aside already provides the
   panel, the overlay, focus capture, the `state` property (`offscreen` / `expanded`) and the
   `hide()`, `expand()` and `toggle()` methods; the mini-cart wraps it and does not reimplement any.
-- It is opened by a **trigger**, `<k-com-cart-button>`: an icon button with an item-count badge, to
+- It is opened by a **trigger**, `<k-commerce-cart-button>`: an icon button with an item-count badge, to
   put in a header. Any element can instead call `miniCart.open()`.
 - **Contents:** lines (picture, name, selections, quantity stepper, remove, line total), notices,
   subtotal, **View cart** and **Checkout** buttons, and an empty state with a link to the shop. A
   loading state on every change; it shows the server's result, never an optimistic guess.
-- **Opens on add** when `mini_cart_open_on_add` is on (default), so adding an item shows the cart.
+- **Opens on add** when `mini_cart_open_on_add` is on (off by default), so adding an item shows the cart.
 - **Stays current:** it listens for `cart-changed` (fired by the add-to-cart button, the cart page
   and anything else that changes the cart, and across tabs through `BroadcastChannel`), and refreshes
   itself. It never polls.
@@ -490,20 +530,19 @@ the mini-cart opens), and use only kempo-css utility classes.
 
 ## 13. Admin
 
-All under Admin → Commerce, each its own page so the back button works; hints in labels; no inline
+All under the Admin → Commerce group (Orders, Carts), each its own page so the back button works; hints in labels; no inline
 detail views.
 
 | Screen | Route | For |
 |---|---|---|
 | **Orders** | `/admin/extension/kempo-commerce/` | List with search (number, name, email), status and date filters, totals, bulk status change. Opening one goes to its page. |
-| **Order** | `.../order/?id=` | Everything on the order: lines, adjustments, tax, tenders, customer, history, notes, requests, refunds; actions (change status, add note, **refund**, mark lines fulfilled, resend email). Extensions add panels through a fragment. |
-| **Refund requests** | `.../requests/` | The queue from section 10.3, oldest first. Opening one is its own page with the preview and the credits decision. |
-| **Refund** | `.../refund/?order=` | Issue a refund without a customer request: lines or amount, destinations, restock, credits decision. |
+| **Order** | `.../order/?id=` | Everything on the order: lines, adjustments, tax, tenders, customer, history, notes, refunds; actions (change status, add note, **refund**, mark lines fulfilled, resend email). Extensions add panels through a fragment. |
+| **Refund** | `.../refund/?order=` | Issue a refund (WooCommerce's refund screen): lines and quantities or an amount, a reason, destinations, restock, and the credits decision. |
 | **Carts** | `.../carts/` | Open and abandoned carts (read-only), with their lines and when they were touched. |
 | **Settings** | `.../settings/` | The settings in section 18, grouped, validated, with explanations, in the Settings nav group (the same pattern as Product Settings). |
-| **Dashboard widget** | — | Orders and revenue today and this week, orders waiting, **refund requests waiting**, with links. |
+| **Dashboard widget** | — | Orders and revenue today and this week, orders waiting (processing, on hold), with links. |
 
-Admin notifications: a new order, a new request, a payment that arrived for an expired order, a
+Admin notifications: a new order, a payment that arrived for an expired order, a
 refund left partially issued.
 
 ## 14. Hooks
@@ -565,13 +604,7 @@ registration order and money math has to happen in a specific sequence.
 
 | Hook | Kind | Payload | Lets you |
 |---|---|---|---|
-| `request:before_create` | guard | `{ order, draft }` | refuse a request (non-refundable item, outside a custom window) |
-| `request:created` | note | `{ order, request }` | |
-| `request:withdrawn` | note | `{ order, request }` | |
-| `refund:before_approve` | guard | `{ order, request?, preview }` | **add warnings or blocks** the administrator must see (a fraud signal, a held shipment) |
-| `refund:approved` | note | `{ order, request?, refund }` | |
-| `request:declined` | note | `{ order, request, note }` | |
-| `refund:before_issue` | guard | `{ order, refund }` | last refusal |
+| `refund:before_issue` | guard | `{ order, refund, preview }` | **add warnings or blocks** the administrator must see (a fraud signal, a held shipment), or refuse |
 | `refund:issued` | note | `{ order, refund }` | **put things back**: licences, shipments, entitlements |
 | `refund:partial` | note | `{ order, refund, done, failed }` | alert |
 | `order:cancelled` | note | `{ order, actor, reason }` | |
@@ -632,18 +665,14 @@ writes it to the order's history.
 | `addOrderNote(id, { body, visibleToCustomer, authorId })` | |
 | `setOrderData(id, patch)`, `addOrderAdjustment(...)` | Extension data on an order. |
 | `getOrderEvents(id, { customerVisibleOnly })` | |
-| `cancelUnpaidOrder(id, { actor })` | |
+| `cancelUnpaidOrder(id, { actor })` | What the customer's Cancel button and an administrator both call. |
 
-### Requests and refunds
+### Refunds
 
 | Function | Does |
 |---|---|
-| `requestCancellation({ orderId, userId, lines, reason, message })`, `requestRefund(...)`, `withdrawRequest(id)` | Customer side. |
-| `listRequests({ status?, orderId?, ... })`, `getRequest(id)` | |
 | `previewRefund({ orderId, lines \| amount, restock, destination })` | The amounts per tender, per line, and **the credits warning** (`credits: [{ productId, given, held, shortfall, userId, historyUrl }]`). Changes nothing. |
-| `approveRequest(id, { refund, credits: 'zero' \| 'owe', actor })` | Issues the refund and completes the request. Refuses (409, `needsDecision: true`) if there is a credits shortfall and no decision. |
-| `declineRequest(id, { note, actor })` | |
-| `refundOrder(orderId, { lines \| amount, destination, restock, credits, note, actor })` | An administrator-initiated refund. Same rules. |
+| `refundOrder(orderId, { lines \| amount, destination, restock, credits, note, actor })` | Issues the refund. Refuses (409, `needsDecision: true`) if there is a credits shortfall and no `credits` decision. |
 
 ### Tenders
 
@@ -671,22 +700,21 @@ still due, undoes them in reverse, and refunds each to itself. Cards are always 
 
 `/commerce/sdk.js` returns the same `[error, data]` tuples: `getCart`, `addToCart`, `updateLine`,
 `removeLine`, `startCheckout`, `placeOrder`, `confirmPayment(orderId)`, `getMyOrders`, `getMyOrder`,
-`requestCancellation`, `requestRefund`, `withdrawRequest`, `cancelOrder`. An error carries what the
+`getOrderByKey(id, key)` (a guest), `cancelOrder`. An error carries what the
 route sent with it (`notices`, `balance` and `needed` on a refused tender, `retryAfter`).
 
 | Element | Module | |
 |---|---|---|
-| `<k-com-add-to-cart>` | `components/AddToCart.js` | Quantity and the button; reads options from the page's `<k-prod-detail>` via its `selection-change` event; disables with the reason; fires `cart-changed`. |
-| `<k-com-cart-button>` | `components/CartButton.js` | The header trigger with the count badge; opens the mini-cart. |
-| `<k-com-mini-cart>` | `components/MiniCart.js` | Section 12. |
-| `<k-com-cart>` | `components/Cart.js` | The cart page's body. |
-| `<k-com-checkout>` | `components/Checkout.js` | The checkout page's body. **Light DOM**, because kempo-payments' Stripe fields do not mount inside a shadow root, so nothing above it may be one either. |
-| `<k-com-orders>`, `<k-com-order>` | `components/Orders.js`, `Order.js` | Order history and an order's page. |
-| `<k-com-request>` | `components/Request.js` | The cancellation / refund request form. |
+| `<k-commerce-add-to-cart>` | `components/AddToCart.js` | Quantity and the button; reads options from the page's `<k-products-detail>` via its `selection-change` event; disables with the reason; fires `cart-changed`. |
+| `<k-commerce-cart-button>` | `components/CartButton.js` | The header trigger with the count badge; opens the mini-cart. |
+| `<k-commerce-mini-cart>` | `components/MiniCart.js` | Section 12. |
+| `<k-commerce-cart>` | `components/Cart.js` | The cart page's body. |
+| `<k-commerce-checkout>` | `components/Checkout.js` | The checkout page's body. **Light DOM**, because kempo-payments' Stripe fields do not mount inside a shadow root, so nothing above it may be one either. |
+| `<k-commerce-orders>`, `<k-commerce-order>` | `components/Orders.js`, `Order.js` | Order history and an order's page. |
 
 **Events** (bubbling, composed): `cart-changed` `{ cart }`, `cart-line-added` `{ line }`,
 `mini-cart-opened`, `mini-cart-closed`, `checkout-step` `{ step }`, `order-placed` `{ order }`,
-`order-paid` `{ order }`, `request-submitted` `{ request }`. Following the project's rule: **methods
+`order-paid` `{ order }`. Following the project's rule: **methods
 cause actions, events only say something happened.**
 
 ## 17. HTTP API
@@ -697,16 +725,15 @@ Under `/commerce/api`. `/my/` routes use the session only. Carts also accept the
 |---|---|
 | `GET /cart`, `POST /cart/lines`, `PATCH /cart/lines/:id`, `DELETE /cart/lines/:id`, `DELETE /cart` | anyone (cart cookie) |
 | `POST /cart/merge` | signed in (called on sign-in) |
-| `GET /checkout`, `POST /checkout/validate`, `POST /checkout/place` | signed in |
-| `POST /checkout/orders/:id/confirm` | signed in, own order — asks the processor |
+| `GET /checkout`, `POST /checkout/validate`, `POST /checkout/place` | anyone with a cart (a guest needs an email; section 8.5) |
+| `POST /checkout/orders/:id/confirm` | the order's owner, or a guest with its `orderKey` — asks the processor |
 | `GET /my/orders`, `GET /my/orders/:id` | signed in |
-| `POST /my/orders/:id/cancel` | signed in, own, unpaid |
-| `POST /my/orders/:id/requests`, `DELETE /my/requests/:id` | signed in, own |
+| `GET /orders/:id/guest?key=` | a guest with the `orderKey` |
+| `POST /my/orders/:id/cancel` | signed in, own, unpaid (a guest with the key may cancel too) |
 | `GET /orders`, `GET /orders/:id`, `GET /orders/:id/events` | `commerce:orders:view` |
 | `PATCH /orders/:id/status`, `POST /orders/:id/notes`, `PATCH /orders/:id/lines/:lineId` | `commerce:orders:manage` |
-| `GET /requests`, `GET /requests/:id` | `commerce:requests:view` |
-| `POST /refunds/preview` | `commerce:refunds:approve` |
-| `POST /requests/:id/approve`, `POST /requests/:id/decline`, `POST /orders/:id/refund` | `commerce:refunds:approve` (and kempo-payments' `payments:refund` for card money) |
+| `POST /refunds/preview` | `commerce:refunds:issue` |
+| `POST /orders/:id/refund` | `commerce:refunds:issue` (and kempo-payments' `payments:refund` for card money) |
 | `GET /carts` | `commerce:orders:view` |
 | `GET /settings`, `PUT /settings` | `commerce:settings:manage` |
 
@@ -722,20 +749,18 @@ of `placeOrder`.
 | `cart_expiry_days` / `cart_purge_days` | 30 / 90 | When an untouched cart is abandoned, and purged. |
 | `max_lines_per_cart`, `max_quantity_per_line` | 100 / 99 | |
 | `pending_expiry_minutes` | 60 | How long an unpaid order holds stock and spends. |
-| `guest_checkout` | off | Allow checking out without an account (open question 3). |
+| `guest_checkout` | **on** | Allow checking out without an account (WooCommerce's default; section 8.5). |
+| `allow_account_creation` | on | Offer "Create an account" on the checkout form. |
 | `order_number_prefix`, `order_number_padding`, `order_number_start` | `#`, 0, 1000 | |
-| `refund_window_days` | 30 | How long after completion a refund can be requested. 0 disables requests. |
-| `allow_cancel_requests` | on | |
-| `refund_reasons` | a list | What the request form offers. |
 | `restock_on_refund` | on | The default for the restock checkbox. |
 | `refund_policy` | text | Shown at checkout and stored with the order. |
-| `mini_cart_side` | `left` | `left` or `right`. |
-| `mini_cart_open_on_add` / `mini_cart_inject` | on / on | |
+| `address_aliases` | on | Map `/cart/`, `/checkout/`, `/account/orders/` to the extension pages. |
+| `mini_cart_side` | `right` | `left` or `right`. |
+| `mini_cart_open_on_add` / `mini_cart_inject` | off / on | |
 | `mini_cart_hide_on_cart_pages` | on | |
 | `purchase_limit_per_user`, `_per_ip`, `_global` | 10 / 20 / 500 | Checkout attempts per hour (section 19). |
 | `failed_payment_limit`, `failed_payment_cooldown_minutes` | 3 / 60 | |
 | `trust_proxy` | off | Take the address from `X-Forwarded-For`; only behind your own proxy. |
-| `shop_page_size` | follows kempo-products | |
 
 ### Permissions
 
@@ -743,12 +768,11 @@ of `placeOrder`.
 |---|---|
 | `commerce:orders:view` | See orders, carts, history |
 | `commerce:orders:manage` | Change status, add notes, mark fulfilment |
-| `commerce:requests:view` | See refund and cancellation requests |
-| `commerce:refunds:approve` | Approve or decline requests, issue refunds (also needs `payments:refund` for card money) |
+| `commerce:refunds:issue` | Issue refunds (also needs `payments:refund` for card money) |
 | `commerce:settings:manage` | Change settings |
 | `commerce:checkout` | Check out. Held by `system:Users` from the first install, like a purchase permission, so a site can narrow it. |
 
-Groups: `kempo-commerce:support` (view orders and requests), `kempo-commerce:manager` (+ manage),
+Groups: `kempo-commerce:support` (view orders), `kempo-commerce:manager` (+ manage),
 `kempo-commerce:administrator` (everything).
 
 ## 19. Abuse protection, security and concurrency
@@ -762,7 +786,8 @@ Selling cheap things to strangers invites *card testing*. Before a payment reach
   attempts are refused until it passes, and **the payment that hit the limit is cancelled at the
   processor** so no more cards can be tried against it from the browser. One decline and a retry is a
   customer and works.
-- **Signed-in buyers only** in v1.
+- **Guests are allowed** (section 8.5), so the limits below are the whole defence: a guest is limited
+  by address and by email as well as site-wide.
 - **A log of every refused attempt**, and a notification as the hour's count reaches 1, 10, 100…
 - `trust_proxy`, because behind a proxy every buyer shares one address. Never when there is no
   proxy: the header is then whatever the client sent.
@@ -801,7 +826,7 @@ Shipping is deliberately not here. This is what it will build on, so these must 
 | Mark things sent | `setLineFulfillment(order, line, 'done', { data: { shipmentId } })`, one call per shipment, so partial shipments work |
 | Show tracking to the customer | `commerce-account-order-panels` fragment — **tracking is entirely its own** |
 | Show a shipment panel to staff | `commerce-admin-order-panels` |
-| React to a refund | `refund:issued` (cancel a label, hold a parcel) and `refund:before_approve` (warn that it already shipped) |
+| React to a refund | `refund:issued` (cancel a label, hold a parcel) and `refund:before_issue` (warn that it already shipped) |
 | Email the customer | `order:email_context` |
 | Weight, dimensions | product fields in kempo-products; commerce passes the line's `productId` and `selections` |
 
@@ -816,7 +841,7 @@ install route, and drives Chromium. Mutation-check the concurrency tests by remo
 guard.
 
 - **Cart:** add/update/remove, merge on sign-in, each notice, limits, expiry sweep.
-- **Totals:** discounts and fees via test hooks, inclusive and exclusive tax, rounding per line,
+- **Totals:** fees via test hooks, inclusive and exclusive tax, rounding per line,
   currency change.
 - **Checkout:** the full happy path with a card (Stripe test mode when keys are present; skipped with a
   message otherwise), **a zero-total path with store credit and no processor**, credits applied,
@@ -825,7 +850,9 @@ guard.
   webhook twice; two tabs.
 - **Orders:** every allowed and refused status transition, events written, customer visibility.
 - **Refunds:** preview numbers; the credits warning and both decisions; partial; to store credit;
-  restock; a step failing mid-refund leaves `partially issued` and is completable; declined; withdrawn.
+  restock; a step failing mid-refund leaves `partially issued` and is completable; a full refund sets `refunded`, a partial one leaves the status.
+- **Guests:** checkout as a guest, access by `orderKey` (and a wrong key refused), a credits pack refused to a guest, linking on verified email, no store credit offered.
+- **Emails:** each template renders and is sent through `sendEmailFromTemplate`; a failed send is an event and never fails the order.
 - **Pages:** every public page and admin page, the permission contract for every audience (visitor,
   customer, support, manager, administrator), the back button on every detail page, no console errors.
 - **Mini-cart:** left and right, open on add, updates from another component, across tabs, keyboard
@@ -848,38 +875,39 @@ Each milestone is releasable and tested on its own.
 | 4 | **Card payments** through kempo-payments: payment, webhook finish, expiry and recovery sweep; abuse limits | kempo-payments |
 | 5 | **Tax** with kempo-tax, inclusive and exclusive | kempo-tax |
 | 6 | **Order history** and the customer order page | |
-| 7 | **Cancellation and refund requests**, the queue, the approval page, the credits warning, issue and partial states | |
-| 8 | **Storefront**: shop, category, add-to-cart on product pages; category source interface | kempo-product-categories (optional) |
+| 7 | **Refunds**: the refund page, preview, the credits warning, issue and partial states, the refunded email | |
+| 8 | **Add to cart** on the catalogue's list and detail pages (`products-list-extra`, `actions` slot); address aliases (upstream route mapping) | |
 | 9 | **Mini-cart** and cart button, injection | |
-| 10 | The remaining **hooks, fragments** and the fixture-extension test; README with the full hook table; dashboard widget; emails | |
+| 10 | The remaining **hooks, fragments** and the fixture-extension test; README with the full hook table; dashboard widget; **emails** (templates, plus the upstream template-directory change in section 9) | kempo core email | |
 
-## 23. Open questions
+## 23. Decisions, and what is left to verify
 
-1. **Where do categories live?** kempo-products has types and tags, and the roadmap has
-   kempo-product-categories as a separate optional extension. This plan has commerce read categories
-   through an interface and fall back to types and tags. Confirm, or fold a simple category table
-   into commerce.
-2. **URLs.** Pages are under `/commerce/…` by kempo's public-scope rule. Do you want top-level aliases
-   (`/shop/`, `/cart/`, `/checkout/`, `/account/orders/`) through a route-mapping setting?
-3. **Guest checkout.** V1 requires an account (credits, store credit and abuse protection all assume
-   one). WooCommerce allows guests. A setting that creates an account silently, or a signed order
-   link, are the two ways to add it — which?
-4. **Who owns the stock-holds change** and what is a hold's default lifetime? (Proposal: 15 minutes
-   for card, `pending_expiry_minutes` for the order.)
-5. **Order of credits and store credit.** The proposal is credits first, then store credit, then the
-   card, because store credit is money and should not be "left over". Confirm.
-6. **Partial refunds of discounts.** A coupon that took 10% off the order: a refund of one line
-   returns that line's share of the discount (proposed). A fixed amount off the order is split
-   proportionally by line total. Confirm.
-7. **Refund to a different tender than was paid** (card money to store credit): allowed for
-   administrators only, as proposed? Any limits?
-8. **Email.** Does kempo have an email-sending SDK to build on, or does commerce need one added
-   upstream first?
-9. **Currency per order vs per site.** One currency per site is assumed. Multi-currency is out of scope
-   unless wanted.
-10. **Inventory deduction timing for kempo-products-inventory** (materials): it reacts to
-    `purchase:recorded`, which now fires at `commitHold` — after payment. Confirm that is the right
-    moment.
+Each decision is "do what WooCommerce does" unless noted.
+
+| Question | Decision |
+|---|---|
+| Guest checkout | **On by default**, optional account creation, access to an order by `orderKey`, orders linked to an account on verified email (section 8.5). Guests are not kempo users and kempo needs no anonymous login. |
+| Account needed anyway | A cart containing a product that grants credits; any use of store credit or credits. |
+| Customer cancel / refund requests | **None**, as in WooCommerce core. A customer cancels an unpaid order; an administrator issues refunds. A request workflow can be a later extension on the `refund:*` hooks. |
+| Order statuses | WooCommerce's seven. No `partially_refunded`. |
+| Refunds | An admin screen: lines or an amount, reason, restock, back to the original tenders. Beyond Woo, because kempo needs it: the credits warning, and an admin-only option to send card money to store credit. |
+| Stock hold | One setting, `pending_expiry_minutes`, default 60. A cart holds nothing. |
+| Stock deducted | At payment (`commitHold`), so kempo-products-inventory deducts materials then. |
+| Currency | One per site. |
+| Tender order | Credits, then store credit, then card. (Woo has no equivalent; wallet and gift-card plugins apply before the gateway.) |
+| Categories, tags, types, shop and category pages | **Not commerce's concern.** Commerce has no shop page, no category page and no taxonomy interface. |
+| Discounts, coupons, sales | **Not built.** The `totals:discounts` hook and the adjustment table stay as the seam for a later extension, which will also own how refunds split a discount. |
+| Order numbers | Sequential, `#1042` (Woo uses the post id). |
+| URLs | Short aliases (`/cart/`, `/checkout/`, `/account/orders/`) through a kempo-server route-mapping setting. |
+| Email | kempo core's `sendEmailFromTemplate` (Resend today; other providers later). Commerce supplies templates and data only. |
+
+### Still to verify or build upstream (milestone 0 and 10)
+
+1. **kempo-products stock holds** (4.1), and that `recordPurchase`/`commitHold` accept a null `userId`.
+2. **A scheduler.** None found in kempo core; the expiry and recovery sweeps need one (section 8.3).
+3. **Extension email templates.** `sendEmailFromTemplate` does not search an extension's directory (section 9).
+4. **Account creation without a password** plus a set-password email, for "Create an account" at checkout (section 8.5).
+5. **Route aliases** in kempo-server (section 11).
 
 ## 24. Conventions an agent must follow
 
@@ -887,7 +915,7 @@ Follow `~/dev/kempo/AGENTS.md` and copy the structure of kempo-credits (the most
 
 - `server/utils/**` is HTTP-agnostic and returns `[error, data]` tuples; it never throws.
 - Routes are `public/api/**/[METHOD].js`; public scope `commerce`; admin pages under `admin/`.
-- Custom elements are prefixed `k-com-`. Icons are `<k-icon>`. No custom CSS beyond what kempo-css
+- Custom elements are prefixed `k-commerce-`. Icons are `<k-icon>`. No custom CSS beyond what kempo-css
   utility classes cannot do. Edit `src/`, never `dist/`.
 - A field's hint goes in a muted `<small>` **inside its label, above the input**; use `mb` classes so
   fields are not cramped; every detail view is a page of its own, so the address changes and the back
@@ -901,3 +929,58 @@ Follow `~/dev/kempo/AGENTS.md` and copy the structure of kempo-credits (the most
   tier, mutation-checked concurrency tests, Stripe test mode only. No mocking.
 - Update `README.md` and `CHANGELOG.md` with every behaviour change; document every hook.
 - **Never** start, stop or restart a dev server the user owns; never commit a `file:` specifier.
+
+## 25. As built
+
+Everything in sections 5 to 22 was built, with these differences and additions. The README is the
+reference for how it works now.
+
+**Upstream work that was needed, all done and tested (uncommitted):**
+
+- **kempo-products**: stock holds (`holdQuantity`, `commitHold`, `releaseHold`, `expireHolds`, `getHold`,
+  `getHolds`, `getHeldQuantities`, a `kempoProductHold` table, three hold events), `reversePurchase` takes
+  `takeBackCredits: false`, and `registerProductAction` (a way for an extension to put a control on every
+  product card and product page; section 4.2's "slots already exist" was wrong, because nothing could fill them).
+- **kempo-products-inventory**: holds reserve materials in kempo-inventory's held stock, and a purchase
+  that came from a hold does not take its materials twice.
+- **kempo (core)**: a scheduler (`jobs` in kempo-config.json, a `scheduledJob` table with a lease, started by the
+  middleware; sites need `drizzle-kit push`), `aliases` (short addresses that never replace a site's own page),
+  extension email templates (`owner/name`, overridable by the site) and `renderEmailTemplate`, the
+  `user:email_verified` hook, `requestPasswordReset({ subject, template })`, and the cart, remove and
+  open-in-new icons. Email itself already existed (`sendEmailFromTemplate`, Resend), which this plan first
+  wrongly said it did not.
+
+**Design differences:**
+
+- **No advisory locks.** Every race is settled by a conditional update: the cart is claimed (`checkout`
+  status) while an order is placed, a status moves only from the status that was read, a refund reserves
+  money and line quantities in one transaction that cannot exceed what was paid. PGlite serialises
+  transactions, so the concurrency suites also run on a real Postgres (the integration tier).
+- **The stock is held before the order is created**, so a refused hold leaves no order at all.
+- **A new checkout from the same cart replaces the earlier unpaid order.**
+- **No customer refund or cancellation requests, no `partially_refunded` status, no shop or category pages,
+  no discounts, no categories** (sections 10, 11 and 23 above are updated to say so). The `totals:discounts` hook
+  and the adjustment table remain as the seam for a coupons extension.
+- **Credits are refunded as a new grant** (so a partial refund works), store credit through `addCredit`, and the
+  card through kempo-payments. Refunding the whole order and restocking all of it reverses the purchase
+  (without taking credits back twice).
+- **Refund amount by free amount** takes back credits in proportion to the money returned.
+- The `address_aliases` setting of section 18 was dropped: an alias simply never replaces a page the site has.
+- The mini-cart's placement is a script that puts the button in the site's `nav` (beside the account link), not
+  a template location, because kempo's default template has none for it.
+- Fragments for `commerce-checkout-sections` and `commerce-checkout-summary-extra` were not built: the checkout is
+  a light-DOM component, and `checkout:fields` covers what they were for.
+
+**Not verified, and why:**
+
+- **A real Stripe payment.** `stripe.node-test.js` does it in test mode and reports itself skipped without
+  `STRIPE_TEST_SECRET_KEY`. In the other suites the card is a stand-in for contacting Stripe only (payments
+  are real rows read through kempo-payments' own SDK).
+- **Tax in a browser.** Tax is covered by `tax.node-test.js` (exclusive and inclusive prices, the sale
+  recorded when paid, a refund reversing its share); it is not looked at in a browser yet.
+- **Mobile layouts and Safari/Firefox.** Everything was looked at in Chrome at desktop width.
+
+**Still to do:** commit and publish (nothing is committed in any repository), `npm run build` in kempo so
+`dist/` carries the three new icons from `src/` (they were also copied into `dist/` so a running site shows them),
+a kempo-products release carrying the holds before commerce's `kempo-products >= 0.1.8` peer is true, and kempo
+releases carrying the scheduler and the rest before commerce's `kempo >= 4.6.3` peer is true.

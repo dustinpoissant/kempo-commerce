@@ -1,0 +1,15 @@
+<!--
+	owner: kempo-commerce
+-->
+<page template="email" title="A note about your order">
+<content>
+<h2>A note about your order</h2>
+<if condition="name"><p>Hi {{name}},</p></if>
+<if condition="!name"><p>Hello,</p></if>
+<p>There is a note on your order {{orderNumber}}:</p>
+<blockquote style="margin: 16px 0; padding: 12px 16px; border-left: 4px solid;">{{note}}</blockquote>
+<div style="text-align: center; margin: 24px 0;">
+	<a href="{{orderLink}}" style="display: inline-block; padding: 14px 28px; background-color: rgb(51, 102, 255); color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">View your order</a>
+</div>
+</content>
+</page>

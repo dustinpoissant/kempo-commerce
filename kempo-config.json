@@ -2,8 +2,244 @@
   "docs": "https://github.com/dustinpoissant/kempo-commerce#readme",
   "git": "https://github.com/dustinpoissant/kempo-commerce",
   "public-scope": "commerce",
+  "schema": "./server/db/schema.js",
   "dependencies": [
     "kempo-products",
     "kempo-payments"
+  ],
+  "aliases": {
+    "/cart": "/commerce/cart",
+    "/checkout": "/commerce/checkout",
+    "/account/orders": "/commerce/account/orders"
+  },
+  "jobs": [
+    {
+      "name": "sweep",
+      "every": "1m",
+      "callback": "./jobs/sweep.js"
+    }
+  ],
+  "widgets": [
+    {
+      "key": "orders",
+      "title": "Orders",
+      "description": "Orders and revenue today and this week, and the orders waiting for a person.",
+      "iconSrc": "/admin/extension/kempo-commerce/icons/receipt.svg",
+      "element": "k-commerce-widget",
+      "module": "/commerce/components/CommerceWidget.js",
+      "defaultWidth": 2,
+      "defaultHeight": 2,
+      "minWidth": 1,
+      "minHeight": 1,
+      "permission": "commerce:orders:view",
+      "priority": 80
+    }
+  ],
+  "hooks": {
+    "payment:succeeded": "./hooks/payment-succeeded.js",
+    "payment:failed": "./hooks/payment-failed.js",
+    "payment:canceled": "./hooks/payment-canceled.js",
+    "payment:refunded": "./hooks/payment-refunded.js",
+    "payment:disputed": "./hooks/payment-disputed.js",
+    "user:email_verified": "./hooks/email-verified.js"
+  },
+  "permissions": [
+    {
+      "name": "commerce:orders:view",
+      "description": "See orders, their history, and open and abandoned carts"
+    },
+    {
+      "name": "commerce:orders:manage",
+      "description": "Change an order's status, add notes, mark lines fulfilled and cancel orders"
+    },
+    {
+      "name": "commerce:refunds:issue",
+      "description": "Refund orders. Returning card money also needs payments:refund"
+    },
+    {
+      "name": "commerce:settings:manage",
+      "description": "Change the commerce settings"
+    },
+    {
+      "name": "commerce:checkout",
+      "description": "Check out while signed in. Held by every user from the first install, so a site can narrow it"
+    }
+  ],
+  "settings": [
+    {
+      "name": "site_url",
+      "value": "http://localhost:3000",
+      "type": "string",
+      "description": "The address of this site, used for the links in emails, such as http://localhost:3000"
+    },
+    {
+      "name": "guest_checkout",
+      "value": "true",
+      "type": "boolean",
+      "description": "Allow people to check out without an account. A cart with credits for sale in it always needs one"
+    },
+    {
+      "name": "allow_account_creation",
+      "value": "true",
+      "type": "boolean",
+      "description": "Offer to create an account on the checkout form. Always offered, and required, when the cart has credits for sale in it"
+    },
+    {
+      "name": "cart_expiry_days",
+      "value": "30",
+      "type": "number",
+      "description": "Days without a change before an open cart counts as abandoned"
+    },
+    {
+      "name": "cart_purge_days",
+      "value": "90",
+      "type": "number",
+      "description": "Days after a cart was abandoned before it is deleted"
+    },
+    {
+      "name": "max_lines_per_cart",
+      "value": "100",
+      "type": "number",
+      "description": "The most different lines one cart can have"
+    },
+    {
+      "name": "max_quantity_per_line",
+      "value": "99",
+      "type": "number",
+      "description": "The most of one product a customer can put on one line"
+    },
+    {
+      "name": "pending_expiry_minutes",
+      "value": "60",
+      "type": "number",
+      "description": "How long an order waiting for its payment holds its quantity and any credit spent on it, before it fails and everything is given back"
+    },
+    {
+      "name": "order_number_prefix",
+      "value": "#",
+      "type": "string",
+      "description": "Shown before every order number, such as # or INV-"
+    },
+    {
+      "name": "order_number_padding",
+      "value": "0",
+      "type": "number",
+      "description": "Pad order numbers with zeros to at least this many digits. 0 does not pad"
+    },
+    {
+      "name": "order_number_start",
+      "value": "1000",
+      "type": "number",
+      "description": "The number of the first order. Changing it later only affects orders placed after"
+    },
+    {
+      "name": "restock_on_refund",
+      "value": "true",
+      "type": "boolean",
+      "description": "Whether refunded products go back into quantity by default. It can be changed for each refund"
+    },
+    {
+      "name": "refund_policy",
+      "value": "",
+      "type": "string",
+      "description": "Shown to the customer at checkout, and kept with the order as what they agreed to"
+    },
+    {
+      "name": "mini_cart_side",
+      "value": "right",
+      "type": "string",
+      "description": "Which side of the page the mini-cart opens from: left or right"
+    },
+    {
+      "name": "mini_cart_open_on_add",
+      "value": "false",
+      "type": "boolean",
+      "description": "Open the mini-cart when something is added to the cart"
+    },
+    {
+      "name": "add_to_cart_toast_action",
+      "value": "mini-cart",
+      "type": "string",
+      "description": "The \"View cart\" button on the confirmation shown after adding to the cart: mini-cart opens the mini-cart (or the cart page when the page has none), cart-page goes to the cart page, none shows no button"
+    },
+    {
+      "name": "mini_cart_inject",
+      "value": "true",
+      "type": "boolean",
+      "description": "Put the mini-cart on every public page. Turn off to place <k-commerce-mini-cart> yourself. The cart button is not placed for you: add the Cart item to a menu"
+    },
+    {
+      "name": "mini_cart_hide_on_cart_pages",
+      "value": "true",
+      "type": "boolean",
+      "description": "Do not show the mini-cart on the cart page itself, which shows the same thing. It is always available on the checkout page, so an item can be changed or added without leaving"
+    },
+    {
+      "name": "purchase_limit_per_user",
+      "value": "10",
+      "type": "number",
+      "description": "Checkout attempts one account can make in an hour. 0 turns the limit off"
+    },
+    {
+      "name": "purchase_limit_per_ip",
+      "value": "20",
+      "type": "number",
+      "description": "Checkout attempts one address can make in an hour. 0 turns the limit off"
+    },
+    {
+      "name": "purchase_limit_global",
+      "value": "500",
+      "type": "number",
+      "description": "Checkout attempts the whole site accepts in an hour. 0 turns the limit off"
+    },
+    {
+      "name": "failed_payment_limit",
+      "value": "3",
+      "type": "number",
+      "description": "Declined payments from one account or address, within the cool-down, before further attempts are refused. 0 turns it off"
+    },
+    {
+      "name": "failed_payment_cooldown_minutes",
+      "value": "60",
+      "type": "number",
+      "description": "How long declines are counted for, and how long attempts are refused once the limit is reached"
+    },
+    {
+      "name": "trust_proxy",
+      "value": "false",
+      "type": "boolean",
+      "description": "Take the visitor's address from X-Forwarded-For. Turn on only when the site is behind a proxy you run: with none, the header is whatever the visitor sent"
+    }
+  ],
+  "groups": [
+    {
+      "name": "kempo-commerce:support",
+      "description": "Sees orders and carts, without changing anything",
+      "permissions": [
+        "system:admin:access",
+        "commerce:orders:view"
+      ]
+    },
+    {
+      "name": "kempo-commerce:manager",
+      "description": "Runs the shop: sees and manages orders, and refunds them",
+      "permissions": [
+        "system:admin:access",
+        "commerce:orders:view",
+        "commerce:orders:manage",
+        "commerce:refunds:issue"
+      ]
+    },
+    {
+      "name": "kempo-commerce:administrator",
+      "description": "Everything: orders, refunds and the commerce settings",
+      "permissions": [
+        "system:admin:access",
+        "commerce:orders:view",
+        "commerce:orders:manage",
+        "commerce:refunds:issue",
+        "commerce:settings:manage"
+      ]
+    }
   ]
 }

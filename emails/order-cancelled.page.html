@@ -1,0 +1,20 @@
+<!--
+	owner: kempo-commerce
+-->
+<page template="email" title="Your order was cancelled">
+<content>
+<h2>Your order was cancelled</h2>
+<if condition="name"><p>Hi {{name}},</p></if>
+<if condition="!name"><p>Hello,</p></if>
+<p>Order {{orderNumber}} was cancelled and nothing was charged.</p>
+<table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
+<foreach in="lines" as="line">
+<tr><td style="padding: 8px 0; border-bottom: 1px solid;">{{line.name}} &times; {{line.quantity}}</td><td style="padding: 8px 0; border-bottom: 1px solid; text-align: right;">{{line.total}}</td></tr>
+</foreach>
+<tr><td style="padding: 8px 0;">Subtotal</td><td style="padding: 8px 0; text-align: right;">{{subtotal}}</td></tr>
+<if condition="hasFees"><tr><td style="padding: 8px 0;">Fees</td><td style="padding: 8px 0; text-align: right;">{{feeTotal}}</td></tr></if>
+<if condition="hasTax"><tr><td style="padding: 8px 0;">Tax</td><td style="padding: 8px 0; text-align: right;">{{taxTotal}}</td></tr></if>
+<tr><td style="padding: 8px 0; font-weight: 700;">Total</td><td style="padding: 8px 0; text-align: right; font-weight: 700;">{{total}}</td></tr>
+</table>
+</content>
+</page>

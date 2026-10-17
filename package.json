@@ -6,15 +6,70 @@
   "license": "MIT",
   "author": "Dustin Poissant",
   "type": "module",
+  "main": "sdk.js",
+  "scripts": {
+    "test": "node scripts/run-tests.js unit kempo-test -l minimal",
+    "test:integration": "node scripts/run-tests.js integration kempo-test -l minimal -t 120000",
+    "link:local": "node scripts/link-local.js"
+  },
+  "exports": {
+    "./install": "./install.js",
+    "./update": "./update.js",
+    "./uninstall": "./uninstall.js",
+    "./sdk": "./sdk.js"
+  },
+  "files": [
+    "admin",
+    "emails",
+    "hooks",
+    "jobs",
+    "public",
+    "server",
+    "install.js",
+    "update.js",
+    "uninstall.js",
+    "sdk.js",
+    "kempo-config.json"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dustinpoissant/kempo-commerce.git"
   },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2"
+  },
   "peerDependencies": {
-    "kempo": ">=4.5.8",
-    "kempo-payments": ">=0.1.10",
-    "kempo-products": ">=0.1.7",
+    "kempo": ">=4.7.0",
+    "kempo-credits": ">=0.1.0",
+    "kempo-payments": ">=0.3.0",
+    "kempo-products": ">=0.2.0",
     "kempo-server": ">=3.3.0",
-    "kempo-ui": ">=0.4.53"
+    "kempo-store-credit": ">=0.1.0",
+    "kempo-tax": ">=0.1.0",
+    "kempo-ui": ">=0.6.0"
+  },
+  "peerDependenciesMeta": {
+    "kempo-credits": {
+      "optional": true
+    },
+    "kempo-store-credit": {
+      "optional": true
+    },
+    "kempo-tax": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.9",
+    "drizzle-kit": "^0.31.10",
+    "kempo-testing-framework": "^1.4.11",
+    "playwright": "^1.64.0",
+    "postgres": "^3.4.9"
+  },
+  "allowScripts": {
+    "esbuild@0.18.20": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true,
+    "puppeteer@25.7.0": true
   }
 }
