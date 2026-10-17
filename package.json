@@ -1,7 +1,6 @@
 {
   "name": "kempo-commerce",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "Carts, orders and checkout for kempo: sells what kempo-products lists, takes payment through kempo-payments, and applies tax, store credit and credits when they are installed",
   "license": "MIT",
   "author": "Dustin Poissant",
