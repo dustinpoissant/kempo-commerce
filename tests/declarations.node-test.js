@@ -154,6 +154,7 @@ export default {
       for(const match of text.matchAll(/sendOrderEmail\([^,]+, '([a-z-]+)'/g)) used.add(match[1]);
       if(file === 'server/utils/orders/emails.js') for(const match of text.matchAll(/: '(order-[a-z-]+)'/g)) used.add(match[1]);
       if(text.includes("template: 'kempo-commerce/set-password'")) used.add('set-password');
+      if(text.includes("const TEMPLATE = 'kempo-commerce/packing-slip'")) used.add('packing-slip');
     }
         for(const name of used) if(!templates.includes(name)) return fail(`${name} is sent but there is no emails/${name}.page.html`);
     for(const name of templates) if(!used.has(name)) return fail(`emails/${name}.page.html is never sent`);

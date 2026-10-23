@@ -7,6 +7,7 @@ import { readConfig } from '../config/settings.js';
 import { EVENTS, guard, notify } from '../hooks.js';
 import lineKey from './lineKey.js';
 import { checkLine, loadProducts, readCurrency } from './catalog.js';
+import { getProductTypes } from 'kempo-products/sdk';
 import { collectAdjustments, computeTotals } from '../totals.js';
 
 /*
@@ -111,13 +112,14 @@ export const getCart = async ({ cartId } = {}) => {
     const rows = await db.select().from(kempoCommerceCartLine).where(eq(kempoCommerceCartLine.cartId, cartId)).orderBy(asc(kempoCommerceCartLine.addedAt), asc(kempoCommerceCartLine.id));
     const products = await loadProducts(rows.map(row => row.productId));
     const credits = { enabled: await creditsEnabled() };
+    const [, productTypes = []] = await getProductTypes();
     credits.perUnit = credits.enabled ? await getCreditsPerUnit() : 0;
 
     const lines = [];
     const notices = [];
     for(const row of rows){
       const { line, notices: found, change } = checkLine({
-        row, product: products.get(row.productId), limits: { maxQuantityPerLine: config.maxQuantityPerLine, currency: cart.currency }, credits,
+        row, product: products.get(row.productId), limits: { maxQuantityPerLine: config.maxQuantityPerLine, currency: cart.currency }, credits, productTypes,
       });
       lines.push(line);
       notices.push(...found);

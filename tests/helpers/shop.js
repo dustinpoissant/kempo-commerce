@@ -3,7 +3,7 @@ import path from 'path';
 import { existsSync, mkdirSync, symlinkSync, readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { like, eq, sql } from 'drizzle-orm';
-import { createProduct, updateProduct } from 'kempo-products/sdk';
+import { createProduct, updateProduct, registerProductType } from 'kempo-products/sdk';
 import { setting, extension, user, permission, group, groupPermission, userGroup } from 'kempo/server/db/schema.js';
 import { createSession } from 'kempo/server/sdk.js';
 import {
@@ -65,7 +65,11 @@ export const purge = async () => {
 
 /* A published product with a price, for the suites to sell. */
 export const makeProduct = async (overrides = {}) => {
-  const [error, product] = await createProduct({ name: `Test product ${crypto.randomBytes(3).toString('hex')}`, price: 1000, status: 'published', ...overrides });
+  /* kempo-credits registers this type when it is installed; the tests stand in for that install. */
+  if(overrides.creditsOnly) await registerProductType('kempo-credits', { key: 'credits-only', name: 'Credits Only', needsShipping: false });
+  /* Likewise kempo-shipping, whose Physical Item is what these products are unless a test says otherwise. */
+  await registerProductType('kempo-shipping', { key: 'physical', name: 'Physical Item', needsShipping: true });
+  const [error, product] = await createProduct({ name: `Test product ${crypto.randomBytes(3).toString('hex')}`, price: 1000, status: 'published', ...(overrides.creditsOnly ? {} : { productType: 'physical' }), ...overrides });
   if(error) throw new Error(`could not make a product: ${error.msg}`);
   return product;
 };

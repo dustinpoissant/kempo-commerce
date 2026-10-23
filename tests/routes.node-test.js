@@ -35,7 +35,7 @@ const walk = async dir => {
   return out;
 };
 
-const BILLING = { name: 'Grace Hopper', email: 'grace@example.test' };
+const BILLING = { name: 'Grace Hopper', email: 'grace@example.test', line1: '1 Test St' };
 const cleanups = [];
 let visitor;
 let customer;
@@ -230,7 +230,7 @@ export default {
     const guestQuote = await hit('checkout/GET.js', { cookies: { kempo_cart: guest.cookies.kempo_cart.value } });
     if(guestQuote.status !== 200 || Object.keys(guestQuote.json.prefill ?? {}).length) return fail(`a guest was prefilled: ${JSON.stringify(guestQuote.json.prefill)}`);
 
-    const person = await signedIn(null, { name: 'Ada Lovelace', email: 'ada@example.test' });
+    const person = await signedIn(null, { name: 'Ada Lovelace', email: 'ada@example.test', line1: '1 Test St' });
     await hit('cart/lines/POST.js', { method: 'POST', cookies: person.cookies, body: { productId: item.id } });
     const first = await hit('checkout/GET.js', { cookies: person.cookies });
     if(first.status !== 200) return fail(`first quote ${first.status}`);

@@ -67,7 +67,7 @@ export const clearCart = () => request('/cart', { method: 'DELETE' });
 */
 
 export const startCheckout = () => request('/checkout');
-export const validateCheckout = ({ billing, tenders }) => request('/checkout/validate', send('POST', { billing, tenders }));
+export const validateCheckout = ({ billing, data, tenders }) => request('/checkout/validate', send('POST', { billing, data, tenders }));
 export const placeOrder = ({ checkoutKey, billing, data, tenders, account, expectedTotal }) => request('/checkout/place', send('POST', { checkoutKey, billing, data, tenders, account, expectedTotal }));
 
 /* Asks the server to check with the processor: the browser's word that a payment worked is never believed. */
@@ -93,6 +93,7 @@ export const listOrders = (params = {}) => request(`/orders${query(params)}`);
 export const getOrder = id => request(`/orders/${encodeURIComponent(id)}`);
 export const setOrderStatus = (id, status, note) => request(`/orders/${encodeURIComponent(id)}/status`, send('PATCH', { status, note }));
 export const addNote = (id, body, visibleToCustomer) => request(`/orders/${encodeURIComponent(id)}/notes`, send('POST', { body, visibleToCustomer }));
+export const contactCustomer = (id, subject, body) => request(`/orders/${encodeURIComponent(id)}/contact`, send('POST', { subject, body }));
 export const setFulfillment = (id, lineId, fulfillment) => request(`/orders/${encodeURIComponent(id)}/lines/${encodeURIComponent(lineId)}`, send('PATCH', { fulfillment }));
 export const cancelUnpaid = (id, reason) => request(`/orders/${encodeURIComponent(id)}/cancel`, send('POST', { reason }));
 export const markPaid = (id, note) => request(`/orders/${encodeURIComponent(id)}/mark-paid`, send('POST', { note }));

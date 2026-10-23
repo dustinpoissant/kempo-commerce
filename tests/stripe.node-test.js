@@ -35,9 +35,9 @@ export default KEY.startsWith('sk_test_') ? {
     const { cart } = ok(await resolveCart({}));
     ok(await addToCart({ cartId: cart.id, productId: item.id }));
     const checkoutKey = key().slice(0, 30);
-    const placed = ok(await placeOrder({ cartId: cart.id, checkoutKey, billing: { name: 'Test Buyer', email: 'buyer@example.test' } }));
+    const placed = ok(await placeOrder({ cartId: cart.id, checkoutKey, billing: { name: 'Test Buyer', email: 'buyer@example.test', line1: '1 Test St' } }));
     if(!placed.payment?.clientSecret?.startsWith('pi_')) return fail(`no client secret: ${JSON.stringify(placed.payment)}`);
-    const again = ok(await placeOrder({ cartId: cart.id, checkoutKey, billing: { name: 'Test Buyer', email: 'buyer@example.test' } }));
+    const again = ok(await placeOrder({ cartId: cart.id, checkoutKey, billing: { name: 'Test Buyer', email: 'buyer@example.test', line1: '1 Test St' } }));
     if(again.payment?.clientSecret !== placed.payment.clientSecret) return fail('a repeat should return the same payment');
     ok(await cancelUnpaidOrder(placed.order.id, { actor: 'customer' }));
     if(ok(await getOrder(placed.order.id)).status !== 'cancelled') return fail('not cancelled');

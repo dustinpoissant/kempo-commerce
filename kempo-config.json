@@ -133,6 +133,12 @@
       "description": "The number of the first order. Changing it later only affects orders placed after"
     },
     {
+      "name": "order_number_random",
+      "value": "false",
+      "type": "boolean",
+      "description": "Give each order a random 8-digit number instead of 1001, 1002 and so on, so nobody can tell how many orders the shop has had or guess another order's number. The prefix still applies; the padding and first number do not"
+    },
+    {
       "name": "restock_on_refund",
       "value": "true",
       "type": "boolean",

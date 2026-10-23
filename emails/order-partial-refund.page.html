@@ -8,8 +8,6 @@
 <if condition="!name"><p>Hello,</p></if>
 <p>We refunded {{refundAmount}} of order {{orderNumber}}.</p>
 <if condition="refundReason"><p>{{refundReason}}</p></if>
-<div style="text-align: center; margin: 24px 0;">
-	<a href="{{orderLink}}" style="display: inline-block; padding: 14px 28px; background-color: rgb(51, 102, 255); color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600;">View your order</a>
-</div>
+<p class="ta-center"><a class="btn primary" href="{{orderLink}}">View your order</a></p>
 </content>
 </page>

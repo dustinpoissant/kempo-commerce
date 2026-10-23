@@ -21,7 +21,7 @@ import { EVENTS } from '../server/utils/events.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OWNER = 'kempo-commerce-discounts-fixture';
-const BILLING = { name: 'Fixture Buyer', email: 'fixture@example.test' };
+const BILLING = { name: 'Fixture Buyer', email: 'fixture@example.test', line1: '1 Test St' };
 
 const ok = ([error, value]) => {
   if(error) throw new Error(`unexpected error: ${error.code} ${error.msg}`);

@@ -1,4 +1,4 @@
-import { getProducts, computePrice, unavailableReason, UNLIMITED, creditQuote, getCreditsPerUnit, getPrice } from 'kempo-products/sdk';
+import { getProducts, computePrice, unavailableReason, UNLIMITED, creditQuote, getCreditsPerUnit, getPrice, needsShippingFor } from 'kempo-products/sdk';
 import { getSetting } from 'kempo/server/sdk.js';
 
 /*
@@ -36,7 +36,7 @@ export const loadProducts = async ids => {
   shown (priced, with its product's name and picture), any notices, and `change` — the quantity or
   price to save back when the catalog made a correction.
 */
-export const checkLine = ({ row, product, limits, credits }) => {
+export const checkLine = ({ row, product, limits, credits, productTypes = [] }) => {
   const notices = [];
   const base = { id: row.id, productId: row.productId, selections: row.selections, data: row.data, quantity: row.quantity };
   const notice = (type, message, blocking = false) => notices.push({ type, lineId: row.id, productId: row.productId, message, blocking });
@@ -92,6 +92,8 @@ export const checkLine = ({ row, product, limits, credits }) => {
       minimumPrice: product.minimumPrice ?? null,
       creditsGranted: credits.enabled ? product.creditsGranted || 0 : 0,
       creditsOnly: credits.enabled ? Boolean(product.creditsOnly) : false,
+      productType: product.productType ?? 'generic',
+      needsShipping: needsShippingFor(productTypes, product.productType ?? 'generic', { creditsOnly: Boolean(product.creditsOnly) }),
       credits: quote,
     },
     notices,

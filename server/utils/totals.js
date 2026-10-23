@@ -20,14 +20,16 @@ import { resolveDiscountRows } from './discounts.js';
 const KINDS = ['discount', 'fee'];
 
 /*
+  A checkout passes `checkout: { billing, data }` (what the customer has entered so far), so a fee that depends on
+  the address, such as shipping, is worked out only there; the cart and the mini-cart leave it out.
   Other extensions contribute discounts and fees through hooks: `{ type, code, label, amount, lineId?,
   taxable?, source }`. A discount may instead say what it is, `data: { kind: 'fixed' | 'percent', value, stackable }` with a
   `lineId`, and leave `amount` out: the amounts are then worked out per line, together, by discounts.js. Commerce does not know what a coupon or a shipping rate is; it knows how to sum,
   display, tax and refund an adjustment. Anything malformed is dropped rather than trusted.
 */
-export const collectAdjustments = async ({ cart, order, lines, currency }) => {
+export const collectAdjustments = async ({ cart, order, lines, currency, checkout = null }) => {
   const adjustments = [];
-  const payload = { cart, order, lines: lines ?? cart?.lines ?? [], adjustments, currency: currency ?? cart?.currency ?? order?.currency };
+  const payload = { cart, order, lines: lines ?? cart?.lines ?? [], adjustments, currency: currency ?? cart?.currency ?? order?.currency, checkout };
 
   await notify(EVENTS.totalsDiscounts, payload);
   await notify(EVENTS.totalsFees, payload);

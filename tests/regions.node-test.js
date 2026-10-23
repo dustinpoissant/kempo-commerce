@@ -15,7 +15,7 @@ const { isCountry, subdivisionsOf, matchSubdivision, fitToLists, getRegions } = 
 const { countryOptions, subdivisionOptions } = await load('public/utils/regions.js');
 const { cleanBilling } = await load('server/utils/checkout/billing.js');
 
-const BILLING = { name: 'Grace Hopper', email: 'grace@example.test' };
+const BILLING = { name: 'Grace Hopper', email: 'grace@example.test', line1: '1 Test St' };
 
 export const beforeAll = async () => {
   await seedDatabase();

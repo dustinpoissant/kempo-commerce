@@ -3,8 +3,9 @@ import { isCountry, subdivisionsOf, matchSubdivision } from './regions.js';
 
 /*
   Checks the contact and billing details a checkout form sends. Returns [error, billing] with every
-  field trimmed and bounded. The address is optional unless tax is on: kempo-tax needs a country to say
-  what to charge, and asking for it only then keeps the form short for a store that does not need it.
+  field trimmed and bounded. The street address is always required (an order cannot be sent, or a card checked, against
+  only a postal code). The rest of the address is optional unless tax is on: kempo-tax needs a country to say what to
+  charge, and asking for it only then keeps the form short for a store that does not need it.
 */
 
 const FIELDS = { name: 200, phone: 50, line1: 200, line2: 200, city: 100, state: 100, postalCode: 30 };
@@ -25,6 +26,7 @@ export const cleanBilling = async ({ billing, accountEmail = null }) => {
   }
 
   if(!clean.name) return [{ code: 400, msg: 'Please give your name' }, null];
+  if(!clean.line1) return [{ code: 400, msg: 'Please give your street address' }, null];
 
   const email = String(billing.email || accountEmail || '').trim().toLowerCase();
   if(!EMAIL.test(email) || email.length > 254) return [{ code: 400, msg: 'Please give a valid email address' }, null];

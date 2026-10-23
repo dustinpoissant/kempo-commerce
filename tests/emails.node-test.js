@@ -35,7 +35,7 @@ const sample = async () => {
   const item = await makeProduct({ name: 'Mug <script>alert(1)</script>', price: 1250, quantity: 4 });
   const { cart } = ok(await resolveCart({}));
   ok(await addToCart({ cartId: cart.id, productId: item.id, quantity: 2 }));
-  const { order, payment } = ok(await placeOrder({ cartId: cart.id, checkoutKey: key().slice(0, 30), billing: { name: 'Ann <b>Bold</b>', email: 'ann@example.test' } }));
+  const { order, payment } = ok(await placeOrder({ cartId: cart.id, checkoutKey: key().slice(0, 30), billing: { name: 'Ann <b>Bold</b>', email: 'ann@example.test', line1: '1 Test St' } }));
   await succeed(payment.id);
   ok(await completeOrder(order.id));
   return ok(await getOrder(order.id));

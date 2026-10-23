@@ -1,5 +1,6 @@
 import db from 'kempo/server/db/index.js';
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
+import { user } from 'kempo/server/db/schema.js';
 import { kempoCommerceEvent } from '../../db/schema.js';
 
 /*
@@ -23,7 +24,13 @@ export const getOrderEvents = async (orderId, { customerVisibleOnly = false } = 
     const where = customerVisibleOnly
       ? and(eq(kempoCommerceEvent.orderId, orderId), eq(kempoCommerceEvent.visible, true))
       : eq(kempoCommerceEvent.orderId, orderId);
-    return [null, await db.select().from(kempoCommerceEvent).where(where).orderBy(asc(kempoCommerceEvent.id))];
+    const events = await db.select().from(kempoCommerceEvent).where(where).orderBy(asc(kempoCommerceEvent.id));
+    if(customerVisibleOnly) return [null, events];
+
+    /* Staff see who did it by name; an actor that is not an account ('system', a payment id) is left as it is. */
+    const ids = [...new Set(events.map(event => event.actor))];
+    const names = new Map((ids.length ? await db.select({ id: user.id, name: user.name }).from(user).where(inArray(user.id, ids)) : []).map(row => [row.id, row.name]));
+    return [null, events.map(event => (names.has(event.actor) ? { ...event, actorName: names.get(event.actor) } : event))];
   } catch(error) {
     return [{ code: 500, msg: 'Failed to read the order history' }, null];
   }

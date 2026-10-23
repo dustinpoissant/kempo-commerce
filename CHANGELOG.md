@@ -4,8 +4,46 @@ All notable changes to `kempo-commerce` are documented in this file.
 
 ## [Unreleased]
 
+### Added (random order numbers)
+
+- **Random order numbers:** the new `order_number_random` setting (a toggle on the Orders tab of Commerce Settings) gives each new order a random 8-digit number, drawn with a cryptographic generator and checked against the orders already placed, so the numbers neither run in order nor reveal how many orders the shop has had. Orders were already unreachable without the owner's session or the order's key; this stops the number being a guess or a count. Settings that are on or off are toggles now.
+
+### Added (email editing)
+
+- **A Preview button on each email** opens it as it would be sent, in one tab each preview replaces, drawn from your latest order or a made-up one. `GET /commerce/api/emails/preview`.
+- **Commerce Settings has tabs, and an Emails tab** that lists the order emails and the packing slip and opens each in a code editor. It uses kempo's new `<k-email-templates>` editor (kempo needs the version that has it).
+
+### Added (packing slip)
+
+- **A Packing slip button on the admin order page** opens a printable slip in a new tab: shop, order number and date, ship-to address, and the items to pack with quantities and options, no prices. It is the new `packing-slip` email template rendered by kempo's email engine (a site overrides it at `templates/emails/kempo-commerce/packing-slip.page.html`), drawn fresh from the order each time. `GET /commerce/api/orders/:id/packing-slip`.
+
+### Changed (order page)
+
+- **Email the customer is a button that opens a dialog** instead of a form on the Customer tab, and the dialog stays open if the email could not be sent. The history now words sent and failed emails ("Email sent: order processing", "Email not sent (…): reason").
+
+### Added (order page tabs)
+
+- **The admin order page is tabbed:** Items, Payment (paid with, totals, refunds), extension tabs, Customer (billing details and **Email the customer**) and History. Extensions add a tab with a `k-commerce-order-tab` in the new `commerce-admin-order-tabs` location (scripts go in `commerce-admin-order-scripts`).
+- **The history names who did each thing** (the staff member's name, on the admin order page) instead of their account id; the customer never sees it.
+- **Email the customer from the order:** `POST /commerce/api/orders/:id/contact` (`commerce:orders:manage`) sends the subject and message in the order-note template and records a `message` entry in the history, only if it was sent.
+- **`setOrderData` and `addOrderEvent`** in the SDK: another extension can change its own key of `order.data` (kempo-shipping edits the shipping address this way) or add a line to the history, each noting who did it.
+
+### Changed
+
+- **kempo-tax is told each line's product type**, so a line is taxed as the class its product type maps to in kempo-tax's settings (credits are taxed as digital goods, not as a mug).
+
+### Added
+
+- **A line's product name links to the product** on the customer's order page while the product still exists and is published; once it is deleted or off sale the name is plain text. The current address is used, so a renamed product still links. Customer order responses carry `productUrl` on each line.
+
+### Changed
+
+- **A checkout section can keep the order from being placed:** an element with a `blocker` (a sentence for the customer, or empty) disables **Place order** and shows the sentence under it. kempo-shipping uses it when an order cannot be shipped or priced.
+- **Checkout sections draw again whenever the checkout does:** a section element (a Lit element added with `registerCheckoutSection`) is asked to update after each checkout update, so it can show what is in `checkout.quote` (kempo-shipping's shipping method choice reads the options the server priced).
+
 ### Added (discounts)
 
+- **Product types on cart and order lines:** each cart line carries its `productType` and `needsShipping`, and order lines keep the `productType` they were placed with (a new column, added by the update). Fulfilment is decided from the product type, so a line that does not need shipping is `none`.
 - **Discounts from other extensions combine on one rule.** A `totals:discounts` handler can push a row that says what it is, `data: { kind: 'fixed' | 'percent', value, stackable }` with a `lineId`, and leave out the amount. Commerce works out each row's amount per line: combinable discounts apply together (fixed amounts first, then the added percents off what is left), one that cannot be combined applies alone, the line gets whichever saves more, and the price never goes below the product's minimum price. `resolveUnitDiscounts` and `resolveDiscountRows` are exported. Rows that already carry an `amount` and no `kind` are unchanged.
 - **The minimum price** (kempo-products `minimumPrice`) is carried onto each cart line, and a line held back by it tells the cart, which shows the new `price_floor_notice` setting under the totals.
 - The cart shows one row per kind of discount or fee, adding up what it took across the lines.
@@ -20,6 +58,10 @@ All notable changes to `kempo-commerce` are documented in this file.
 
 ### Added
 
+- **The billing street address is required.** The Address line is marked required on the checkout and the server refuses an order without it ("Please give your street address"), so an order can no longer be placed against only a postal code. The shipping address already required its street line when it differs from billing.
+- **Under a discount or fee that belongs to one item, the cart, the checkout, the order page and the admin order page name the item**, in small muted print ("Sale: 10% Off" over "Starter credits"), so a customer and staff can see which item each one came from. In the cart, where the same kind of sale on several items is one row, the names are listed.
+- **The order page's "thank you" heading now reads "Order Details"**, and next to Keep shopping there is a **View all orders** button (for a signed-in customer; a guest's link has no order list to go to).
+- **The admin order page's extension points are locations**, `commerce-admin-order-panels` and `commerce-admin-order-actions`, not fragments, so several extensions can add a panel or a button at once (a fragment has one winner).
 - **A "View cart" button on the add confirmation**, with a setting (`add_to_cart_toast_action`, in Commerce Settings) for what it does: open the mini-cart (the default, and the cart page when the page has no mini-cart), go to the cart page, or not be shown.
 
 ### Changed
@@ -52,7 +94,8 @@ Carts, orders, checkout and refunds for kempo, modelled on WooCommerce's core.
 - **Leaving checkout is never blocked.** A **Back to cart** button sits beside the title, the full site navigation stays, and the side cart now works on the checkout page (it used to be hidden there, leaving its button doing nothing). Changing or removing an item in it updates the checkout, keeping what has been typed. `mini_cart_hide_on_cart_pages` now hides it only on the cart page, which shows the same thing; the nav button goes to the cart page when there is no side cart to open.
 - The order summary is headed **Cart totals**.
 - **Everything on one page.** The checkout no longer has a second payment page. A **Payment** section at the bottom of the form has a store credit amount to use, a credits amount to use, and the card for what is left (shown only when something is left), and **Place order** makes the order, makes the payment and charges the card in one step. A declined card leaves the order saved and the form there to try again. The card fields are kempo-payments' `<k-pay-form deferred>`, so this needs `kempo-payments >=0.3.0`.
-- **Extensions can add to the checkout page** with `registerCheckoutSection(tag, { where })` from `/commerce/components/checkoutSections.js` (`details`, `payment` or `summary`); the element is handed the page to read the quote, ask for new totals and add data to the order.
+- **Checkout details reach the fee hook:** `startCheckout`, the validate route and `placeOrder` pass the checkout's `data` and billing to `totals:fees` as `checkout: { billing, data }`, so a fee that depends on what the customer entered (shipping) is worked out at checkout. The cart and mini-cart do not get `checkout`, so they leave such fees out.
+- **The checkout is an accordion:** Contact, Billing address, Store credit and credits, and Payment, several open at once. A panel closes itself once it is filled in and focus has left it (unless the customer opened it), and the next one opens when a panel is filled in. An extension's panel says it is done with a `complete` property. **Extensions can add a panel** with `registerCheckoutSection(tag, { title, priority })` from `/commerce/components/checkoutSections.js` (a shipping address, say), or an element under the summary with `where: 'summary'`; the element is handed the page to read the quote, ask for new totals and add data to the order.
 - The checkout form starts filled in for a signed-in customer: their name and email from the account, and the phone and address from their last order. The account wins over the last order for the name (an order can be a gift), only blanks are filled, and a guest starts with an empty form.
 - Checkout for guests (on by default) and signed-in customers, with an optional account step that is required when the cart has credits for sale. Prices on the server, one `placeOrder` call that is idempotent on a checkout key, stock held through kempo-products' stock holds, then credits, store credit and the card taken as **tenders** with a full undo on any failure. An order covered by store credit and credits needs no payment processor.
 - WooCommerce's seven order statuses, an append-only history, notes (private or shown to the customer), per-line fulfilment, sequential order numbers, and what the customer was shown kept with the order. A guest reaches their order with the key in their link, and guest orders join an account when its email is verified.

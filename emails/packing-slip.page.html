@@ -1,0 +1,27 @@
+<!--
+	owner: kempo-commerce
+-->
+<page template="email" title="Packing slip">
+<content>
+<h2>Packing slip</h2>
+<p>
+	<strong>{{siteName}}</strong><br>
+	Order {{orderNumber}}<if condition="placedDate"> &middot; placed {{placedDate}}</if>
+</p>
+<if condition="hasShipTo">
+<h3>Ship to</h3>
+<p>
+<foreach in="shipTo" as="part">{{part}}<br>
+</foreach>
+</p>
+</if>
+<h3>Items ({{itemCount}})</h3>
+<table class="mb">
+<tr><th>Qty</th><th>Item</th></tr>
+<foreach in="packItems" as="item">
+<tr><td>{{item.quantity}}</td><td>{{item.name}}<if condition="item.hasOptions"><br><span class="tc-muted">{{item.options}}</span></if></td></tr>
+</foreach>
+</table>
+<p>Thank you for your order.</p>
+</content>
+</page>

@@ -32,7 +32,7 @@ const refused = ([error], code) => {
   return error;
 };
 
-const BILLING = { name: 'Ada Lovelace', email: 'ada@example.test' };
+const BILLING = { name: 'Ada Lovelace', email: 'ada@example.test', line1: '1 Test St' };
 
 const quantityOf = async product => ok(await getProduct(product.id)).quantity;
 
@@ -345,7 +345,7 @@ export default {
     if(error.account?.reason !== 'credits') return fail('should say credits need an account');
 
     const email = `fresh-${key().slice(0, 8)}@example.test`;
-    const { order, payment } = ok(await placeOrder({ cartId, checkoutKey: key().slice(0, 30), billing: { name: 'New Buyer', email }, account: { create: true } }));
+    const { order, payment } = ok(await placeOrder({ cartId, checkoutKey: key().slice(0, 30), billing: { name: 'New Buyer', email, line1: '1 Test St' }, account: { create: true } }));
     if(!order.userId) return fail('the order should belong to the new account');
     await succeed(payment.id);
     ok(await completeOrder(order.id));
@@ -355,7 +355,7 @@ export default {
     if(ok(await creditBalance({ userId: order.userId })).total !== 100) return fail('the credits were not granted when it was paid');
 
     const again = await cartWith(pack);
-    const clash = refused(await placeOrder({ cartId: again.cartId, checkoutKey: key().slice(0, 30), billing: { name: 'New Buyer', email }, account: { create: true } }), 409);
+    const clash = refused(await placeOrder({ cartId: again.cartId, checkoutKey: key().slice(0, 30), billing: { name: 'New Buyer', email, line1: '1 Test St' }, account: { create: true } }), 409);
     if(!clash.existing) return fail('an email that already has an account should say so');
     pass('');
   },

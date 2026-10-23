@@ -123,7 +123,7 @@ const placeClaimed = async ({ cartId, userId, checkoutKey, billing, data, tender
   const [billingError, cleanBill] = await cleanBilling({ billing, accountEmail });
   if(billingError) return [billingError, null];
 
-  const [quoteError, quote] = await startCheckout({ cartId, userId, billing: cleanBill, tenders });
+  const [quoteError, quote] = await startCheckout({ cartId, userId, billing: cleanBill, data, tenders });
   if(quoteError) return [quoteError, null];
   const { cart, totals, plan, tax } = quote;
 
@@ -180,7 +180,7 @@ const placeClaimed = async ({ cartId, userId, checkoutKey, billing, data, tender
       await tx.insert(kempoCommerceOrderLine).values(cart.lines.map((line, position) => ({
         id: lineIds.get(line.id), orderId, position, productId: line.productId, slug: line.slug, name: line.name, selections: line.selections,
         optionLines: line.optionLines, unitPrice: line.unitPrice, quantity: line.quantity, lineTotal: line.lineTotal,
-        tax: tax?.perLine?.[line.id] ?? 0, fulfillment: 'none', creditsGranted: line.creditsGranted ?? 0, creditsOnly: Boolean(line.creditsOnly), data: line.data,
+        tax: tax?.perLine?.[line.id] ?? 0, fulfillment: 'none', creditsGranted: line.creditsGranted ?? 0, creditsOnly: Boolean(line.creditsOnly), productType: line.productType ?? 'physical', data: line.data,
       })));
 
       const adjustments = [

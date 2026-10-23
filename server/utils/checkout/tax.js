@@ -73,6 +73,8 @@ export const quoteTax = async ({ lines, adjustments = [], billing, currency, car
   /* A line-level discount lowers what is taxed on that line; one on the whole order is not spread here. */
   const taxLines = lines.map(line => ({
     reference: line.id,
+    /* What kind of product it is, so kempo-tax can tax it as its Settings say that type is (credits are not taxed like a mug). */
+    productType: line.productType,
     amount: Math.max(0, line.lineTotal + adjustments.filter(adjustment => adjustment.lineId === line.id).reduce((sum, adjustment) => sum + adjustment.amount, 0)),
   })).filter(line => line.amount > 0);
   const shipping = adjustments.filter(adjustment => adjustment.type === 'fee' && adjustment.taxable).reduce((sum, adjustment) => sum + adjustment.amount, 0);

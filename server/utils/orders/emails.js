@@ -9,8 +9,8 @@ import { formatOrderNumber } from './number.js';
 /*
   Customer emails and administrator notifications.
 
-  Commerce sends nothing itself: it uses kempo's own email system (`sendEmailFromTemplate`, Resend
-  today and other providers later) and only supplies the templates in emails/ and their data. The set
+  Commerce sends nothing itself: it uses kempo's own email system (`sendEmailFromTemplate`, which logs the
+  email and has an email extension send it) and only supplies the templates in emails/ and their data. The set
   is WooCommerce's: received, processing, completed, on hold, failed, refunded, a note for the
   customer, and (new here) the link to set a password for an account made at checkout. Administrators
   get kempo notifications, not email.

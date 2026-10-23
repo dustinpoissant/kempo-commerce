@@ -1,5 +1,6 @@
 import { cancelUnpaidOrder } from '../../../../../../server/utils/checkout/unwind.js';
 import { forCustomer, getOrder } from '../../../../../../server/utils/orders/read.js';
+import withProductLinks from '../../../../../../server/utils/orders/links.js';
 import { customerOrder, refuse, requireSession } from '../../../../../../server/http/gate.js';
 
 /*
@@ -17,5 +18,5 @@ export default async (request, response) => {
   if(error) return refuse(response, error);
 
   const [, order] = await getOrder(access.order.id, { notes: true });
-  response.json({ order: forCustomer(order) });
+  response.json({ order: await withProductLinks(forCustomer(order)) });
 };

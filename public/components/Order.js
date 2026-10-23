@@ -3,7 +3,7 @@ import { html, css, nothing } from '/kempo-ui/lit-all.min.js';
 import '/kempo-ui/components/Icon.js';
 import '/kempo-ui/components/Spinner.js';
 import { getMyOrder, getOrderByKey, cancelOrder, cancelOrderByKey, confirmPayment } from '/commerce/sdk.js';
-import { loadFormat, formatDate, statusLabel, STATUS_COLORS, optionsText, eventText } from '/commerce/utils/format.js';
+import { loadFormat, formatDate, statusLabel, STATUS_COLORS, optionsText, eventText, itemNames } from '/commerce/utils/format.js';
 
 /*
   One order, served at /commerce/components/Order.js.
@@ -136,7 +136,7 @@ export default class Order extends ShadowComponent {
     if(this.received){
       if(order.status === 'pending_payment') return html`<h1>Waiting for your payment</h1><p><k-spinner size="xs"></k-spinner> We are checking with the payment processor. This page updates by itself.</p>`;
       if(order.status === 'failed' || order.status === 'cancelled') return html`<h1>This order was not completed</h1><p>Nothing was charged. You can go back to your cart and try again.</p>`;
-      return html`<h1>Thank you</h1><p>We received your order and your payment. A receipt was sent to <strong>${order.email}</strong>.</p>`;
+      return html`<h1>Order Details</h1><p>We received your order and your payment. A receipt was sent to <strong>${order.email}</strong>.</p>`;
     }
     return html`<h1>Order ${order.numberLabel}</h1>`;
   }
@@ -160,7 +160,7 @@ export default class Order extends ShadowComponent {
           <thead><tr><th>Product</th><th>Price</th><th>Quantity</th><th class="ta-right">Total</th></tr></thead>
           <tbody>
             ${order.lines.map(line => html`<tr>
-              <td>${line.name}${optionsText(line) ? html`<div class="tc-muted small">${optionsText(line)}</div>` : nothing}
+              <td>${line.productUrl ? html`<a href=${line.productUrl}>${line.name}</a>` : line.name}${optionsText(line) ? html`<div class="tc-muted small">${optionsText(line)}</div>` : nothing}
                 ${line.creditsGranted ? html`<div class="tc-success small">${line.creditsGranted * line.quantity} credits ${order.paidAt ? 'added to your account' : 'once paid'}</div>` : nothing}
                 ${line.fulfillment === 'pending' && order.paidAt ? html`<div class="tc-muted small">Being prepared</div>` : nothing}
                 ${line.fulfillment === 'done' ? html`<div class="tc-success small">Sent</div>` : nothing}</td>
@@ -169,7 +169,7 @@ export default class Order extends ShadowComponent {
           </tbody>
           <tfoot>
             <tr><td colspan="3" class="ta-right" style="background-color: var(--c_bg__alt);"><strong>Subtotal</strong></td><td class="ta-right">${this.money(order.subtotal)}</td></tr>
-            ${order.adjustments.filter(adjustment => adjustment.type !== 'tax').map(adjustment => html`<tr><td colspan="3" class="ta-right" style="background-color: var(--c_bg__alt);"><strong>${adjustment.label}</strong></td><td class="ta-right">${this.money(adjustment.amount)}</td></tr>`)}
+            ${order.adjustments.filter(adjustment => adjustment.type !== 'tax').map(adjustment => html`<tr><td colspan="3" class="ta-right" style="background-color: var(--c_bg__alt);"><strong>${adjustment.label}</strong>${itemNames(adjustment.lineId, order.lines) ? html`<small class="d-b tc-muted">${itemNames(adjustment.lineId, order.lines)}</small>` : nothing}</td><td class="ta-right">${this.money(adjustment.amount)}</td></tr>`)}
             ${order.taxTotal ? html`<tr><td colspan="3" class="ta-right" style="background-color: var(--c_bg__alt);"><strong>Tax${order.pricesIncludeTax ? ' (included)' : ''}</strong></td><td class="ta-right">${this.money(order.taxTotal)}</td></tr>` : nothing}
             <tr><td colspan="3" class="ta-right" style="background-color: var(--c_bg__alt);"><strong>Total</strong></td><td class="ta-right"><strong>${this.money(order.total)}</strong></td></tr>
             ${order.refundedTotal ? html`<tr><td colspan="3" class="ta-right" style="background-color: var(--c_bg__alt);"><strong>Refunded</strong></td><td class="ta-right">−${this.money(order.refundedTotal)}</td></tr>` : nothing}
@@ -192,6 +192,7 @@ export default class Order extends ShadowComponent {
         <slot name="actions"></slot>
         ${order.status === 'pending_payment' ? html`<button class="danger" ?disabled=${this.busy} @click=${this.cancel}>Cancel this order</button>` : nothing}
         ${this.received ? html`<a class="btn" href="/products/">Keep shopping</a>` : nothing}
+        ${this.received && !this.key ? html`<a class="btn" href="/account/orders/">View all orders</a>` : nothing}
         ${order.status === 'failed' || order.status === 'cancelled' ? html`<a class="btn primary" href="/cart/">Back to your cart</a>` : nothing}
       </div>
     `;

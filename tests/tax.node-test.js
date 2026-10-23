@@ -30,7 +30,7 @@ const refused = ([error], code) => {
   return error;
 };
 
-const US = { name: 'Buyer', email: 'buyer@example.test', country: 'US', state: 'VT', postalCode: '05401' };
+const US = { name: 'Buyer', email: 'buyer@example.test', line1: '1 Test St', country: 'US', state: 'VT', postalCode: '05401' };
 
 const cartWith = async (product, quantity = 1) => {
   const { cart } = ok(await resolveCart({}));
@@ -76,7 +76,7 @@ export default {
   'checkout needs a country once tax is on': async ({ pass, fail }) => {
     const item = await makeProduct({ price: 1000 });
     const cartId = await cartWith(item);
-    const error = refused(await placeOrder({ cartId, checkoutKey: key().slice(0, 30), billing: { name: 'Buyer', email: 'b@example.test' } }), 400);
+    const error = refused(await placeOrder({ cartId, checkoutKey: key().slice(0, 30), billing: { name: 'Buyer', email: 'b@example.test', line1: '1 Test St' } }), 400);
     if(!/country/i.test(error.msg)) return fail(error.msg);
     pass('');
   },
@@ -160,7 +160,9 @@ export default {
   },
 
   'placing an order refuses the missing state or postal code with a plain message': async ({ pass, fail }) => {
-    const clean = billing => cleanBilling({ billing: { name: 'Buyer', email: 'b@example.test', ...billing } });
+    const clean = billing => cleanBilling({ billing: { name: 'Buyer', email: 'b@example.test', line1: '1 Test St', ...billing } });
+    const [noStreet] = await cleanBilling({ billing: { name: 'Buyer', email: 'b@example.test', country: 'US', state: 'VT', postalCode: '05401' } });
+    if(noStreet?.code !== 400 || !/street address/.test(noStreet.msg)) return fail(`a postal code alone is not an address: ${JSON.stringify(noStreet)}`);
     const [noState] = await clean({ country: 'US', postalCode: '05401' });
     if(noState?.code !== 400 || !/state or region/.test(noState.msg) || !/calculated/.test(noState.msg)) return fail(`state: ${JSON.stringify(noState)}`);
     const [noPostal] = await clean({ country: 'US', state: 'VT' });

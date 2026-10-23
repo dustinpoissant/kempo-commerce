@@ -40,9 +40,13 @@ export const INDEXES = [
 /*
   Columns added since a table was first created. kempo's installer makes a table from the schema only
   when it is missing, so a site whose tables predate a column never gets it. Each statement is
-  `IF NOT EXISTS`, so this is safe on every install and update, and a failure throws. None yet.
+  `IF NOT EXISTS`, so this is safe on every install and update, and a failure throws.
 */
-export const COLUMNS = [];
+export const COLUMNS = [
+  /* The column was called itemType while product types were item types: keep what it holds. */
+  { name: 'productType rename', sql: sql`DO $$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'kempoCommerceOrderLine' AND column_name = 'itemType') AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'kempoCommerceOrderLine' AND column_name = 'productType') THEN ALTER TABLE "kempoCommerceOrderLine" RENAME COLUMN "itemType" TO "productType"; END IF; END $$` },
+  { name: 'productType', sql: sql`ALTER TABLE "kempoCommerceOrderLine" ADD COLUMN IF NOT EXISTS "productType" text NOT NULL DEFAULT 'generic'` },
+];
 
 export const ensureColumns = async () => {
   for(const column of COLUMNS){

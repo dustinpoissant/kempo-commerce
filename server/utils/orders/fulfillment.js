@@ -1,6 +1,7 @@
 import db from 'kempo/server/db/index.js';
 import { and, eq, ne } from 'drizzle-orm';
 import { kempoCommerceOrder, kempoCommerceOrderLine } from '../../db/schema.js';
+import { getProductTypes, needsShippingFor } from 'kempo-products/sdk';
 import { EVENTS, guard, notify } from '../hooks.js';
 import { addEvent } from './events.js';
 import { assemble } from './read.js';
@@ -20,7 +21,8 @@ import { moveStatus } from './status.js';
   products and `none` for downloads).
 */
 export const decideFulfillment = async (order, line) => {
-  const fulfillment = { value: line.creditsOnly ? 'none' : 'pending', data: {} };
+  const [, types = []] = await getProductTypes();
+  const fulfillment = { value: needsShippingFor(types, line.productType ?? '', { creditsOnly: line.creditsOnly }) ? 'pending' : 'none', data: {} };
   const refused = await guard(EVENTS.orderLineFulfillment, { order, line, fulfillment });
   if(refused) return 'pending';
   return ['none', 'pending', 'done'].includes(fulfillment.value) ? fulfillment.value : 'pending';

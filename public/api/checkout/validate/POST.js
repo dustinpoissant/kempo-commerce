@@ -10,8 +10,8 @@ export default async (request, response) => {
   if(error) return refuse(response, error);
   if(!found.cart) return refuse(response, { code: 409, msg: 'Your cart is empty' });
 
-  const { billing = null, tenders = {} } = body(request);
-  const [quoteError, quote] = await startCheckout({ cartId: found.cart.id, userId: found.session?.user.id ?? null, billing, tenders });
+  const { billing = null, data = {}, tenders = {} } = body(request);
+  const [quoteError, quote] = await startCheckout({ cartId: found.cart.id, userId: found.session?.user.id ?? null, billing, data, tenders });
   if(quoteError) return refuse(response, quoteError);
   response.json({ quote });
 };

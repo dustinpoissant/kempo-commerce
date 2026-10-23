@@ -170,14 +170,22 @@ nothing is changed automatically.
 
 ## Emails
 
-Commerce supplies templates and data; **kempo sends them** (`sendEmailFromTemplate`, Resend today and
-other providers later). WooCommerce's set: processing (received and paid), completed, on hold, failed,
+Commerce supplies templates and data; **kempo logs and sends them** (`sendEmailFromTemplate`: kempo
+keeps a log of every email, and an email extension such as kempo-resend or kempo-smtp sends it). WooCommerce's set: processing (received and paid), completed, on hold, failed,
 cancelled, refunded, part refunded, a customer note, and the link to set a password for an account made
 at checkout. A site rewords any of them with `templates/emails/kempo-commerce/<name>.page.html`, and they
 use the site's email layout. Other extensions add to a template's data through
 `kempo-commerce:order:email_context`. A failed send is recorded on the order and never fails it.
 Administrators get kempo **notifications** (new order, refund left partial, a payment for an expired order,
 a flood of refused checkouts), not email.
+
+**Editing.** The **Emails** tab of Commerce Settings (`/admin/extension/kempo-commerce/settings/`) lists every template, including the packing slip. **Edit** opens one in a code editor; saving writes the site's copy to `templates/emails/kempo-commerce/` (used from the next email, kept through updates) and **Reset to default** removes it. **Preview** opens a template as it would be sent, in one tab that each preview replaces, using your most recent order (or a made-up one when there are none) and sample wording for a note, a refund and a password link; it shows the saved template, not what is being typed. `GET /commerce/api/emails/preview?template=` (`commerce:settings:manage`). The editor is kempo's `<k-email-templates owner="kempo-commerce" preview-url="/commerce/api/emails/preview">`.
+
+**Styling.** Kempo runs every email template through `kempo-css/shake`, which keeps only the kempo-css rules the template uses and embeds them in the email, so the templates are written with kempo-css elements and classes (`<table>`, `<a class="btn primary">`, `.ta-center`, `.ta-right`, `.tc-muted`) and no inline styles. Do the same in a template you override or add.
+
+**Packing slip.** The **Packing slip** button on the admin order page opens a page to print: the shop name, order number and date, where it is going, and the items to pack with their quantities and options (no prices, so it can go in a gift). It is an email template, `emails/packing-slip.page.html`, drawn by kempo's email engine and returned as HTML instead of being sent, so it is changed like any email: put your own at `templates/emails/kempo-commerce/packing-slip.page.html`, and it uses the site's email layout. It is drawn from the order each time (nothing is stored), so it always has the address as it is now. Its data is the email data plus `placedDate`, `shipTo` (lines of the address), `hasShipTo`, `packItems` (`name`, `options`, `hasOptions`, `quantity`) and `itemCount`; other extensions add to it through `kempo-commerce:order:email_context`, which gets `template: 'packing-slip'`. `GET /commerce/api/orders/:id/packing-slip` (`commerce:orders:view`).
+
+**Emailing a customer.** **Email the customer** on the Customer tab opens a dialog with a subject and a message, sent in the `order-note` template. A sent email is a private line in the order's history ("Emailed the customer: subject", with who sent it); one that could not be sent is recorded as "Email not sent" with the reason.
 
 ## Building on it: the SDK
 
@@ -214,10 +222,22 @@ is written to the order's history.
 | Offer methods and add the cost | `totals:fees`: a fee adjustment with `source` and `taxable` |
 | Say which lines need sending | `order:line_fulfillment` |
 | Mark things sent | `setLineFulfillment(order, line, 'done', { data: { shipmentId } })`, one call per shipment |
-| Show tracking | the `commerce-account-order-panels` fragment (customer) and `commerce-admin-order-panels` (staff) |
+| Show tracking | the `commerce-account-order-panels` fragment (customer) and a tab on the admin order page (staff, see below) |
+| Change a part of an order later | `setOrderData(orderId, key, value, { actor, summary })`: changes only `order.data[key]` and writes a private history entry |
+| Add a line to the history | `addOrderEvent(orderId, type, { actor, visible, data: { summary } })` |
 | React to a refund | `refund:issued`, and `refund:before_issue` to warn that it already shipped |
 
 Nothing here stores a carrier, a tracking number or a rate.
+
+### Tabs on the admin order page
+
+The admin order page is a set of tabs: **Items**, **Payment**, the tabs other extensions add (kempo-shipping's **Shipping** comes next), **Customer** (billing details, and a form to email the customer) and **History**. An extension adds a tab by putting a `k-commerce-order-tab` in the `commerce-admin-order-tabs` location (and loading its component from `commerce-admin-order-scripts`, outside any template):
+
+```html
+<k-commerce-order-tab name="shipping" label="Shipping" position="300"><k-shipping-order></k-shipping-order></k-commerce-order-tab>
+```
+
+`position` sorts the tabs (Items 100, Payment 200, Customer 400, extensions 600 unless set, History 1000). The tab's component loads the order itself with `getOrder` from the `id` in the page address.
 
 ## Discounts
 
@@ -251,7 +271,7 @@ Every payload carries `actor`: the extension that made the change, or `''` for a
 | `kempo-commerce:cart:validate` | guard | `{ cart, notices }` | **add notices** (set `blocking`) for a regional restriction or a mixed-cart rule |
 | `kempo-commerce:cart:expired` | note | `{ cart }` | abandoned-cart emails |
 | `kempo-commerce:totals:discounts` | note | `{ cart or order, lines, adjustments, currency }` | push `{ type: 'discount', code, label, lineId, taxable?, source, data: { kind: 'fixed' | 'percent', value, stackable } }` and **leave out `amount`**: commerce works out every row's amount per line, together (see Discounts). A row that already has an `amount` and no `kind` is used as it is |
-| `kempo-commerce:totals:fees` | note | same | push `{ type: 'fee', ... }`: **shipping lands here** |
+| `kempo-commerce:totals:fees` | note | same, plus `checkout` (`{ billing, data }`) at checkout only | push `{ type: 'fee', ... }`: **shipping lands here**. Read `checkout.data` for what the customer entered; the cart and mini-cart do not get `checkout` |
 | `kempo-commerce:totals:tax` | note | `{ cart or order, taxable, address, tax }` | replace `tax` (kempo-tax has already filled it in) |
 | `kempo-commerce:totals:computed` | note | `{ cart or order, totals }` | read the result |
 | `kempo-commerce:checkout:fields` | guard | `{ cart, fields }` | **add fields to the checkout form** (a delivery address, a gift message, a VAT number): `{ key, label, type, required, hint }` |
@@ -318,7 +338,7 @@ embeds a `<k-products-list>` includes `<fragment name="products-card-template" /
 The short addresses are kempo `aliases`: a page the site has of its own at that address always wins.
 Fragments other extensions can fill: `commerce-cart-before`, `commerce-cart-after`,
 `commerce-order-received-extra`, `commerce-account-order-panels`, `commerce-account-order-actions`,
-`commerce-admin-order-panels`, `commerce-admin-order-actions`.
+`commerce-admin-order-panels` (under the Items tab), `commerce-admin-order-actions`, `commerce-admin-order-tabs` and `commerce-admin-order-scripts`.
 
 ## HTTP API
 
@@ -332,8 +352,8 @@ Under `/commerce/api`. `/my/` routes use the session only.
 | `POST /checkout/orders/:id/confirm` | the order's owner, or a guest with its key: asks the processor |
 | `GET /my/orders`, `GET /my/orders/:id`, `POST /my/orders/:id/cancel` | signed in, their own |
 | `GET /orders/:id/guest?key=`, `POST /orders/:id/guest/cancel` | a guest with the key |
-| `GET /orders`, `GET /orders/:id`, `GET /orders/:id/events`, `GET /carts`, `GET /summary` | `commerce:orders:view` |
-| `PATCH /orders/:id/status`, `POST /orders/:id/notes`, `PATCH /orders/:id/lines/:lineId`, `POST /orders/:id/cancel`, `POST /orders/:id/mark-paid` | `commerce:orders:manage` |
+| `GET /orders`, `GET /orders/:id`, `GET /orders/:id/events`, `GET /orders/:id/packing-slip` (a page to print), `GET /carts`, `GET /summary` | `commerce:orders:view` |
+| `POST /orders/:id/contact` (`{ subject, body }`: emails the customer and notes it in the history), `PATCH /orders/:id/status`, `POST /orders/:id/notes`, `PATCH /orders/:id/lines/:lineId`, `POST /orders/:id/cancel`, `POST /orders/:id/mark-paid` | `commerce:orders:manage` |
 | `POST /refunds/preview`, `POST /orders/:id/refund`, `POST /refunds/:id/finish` | `commerce:refunds:issue` (and `payments:refund` for card money) |
 | `GET /settings`, `PUT /settings` | `commerce:settings:manage` |
 
@@ -369,6 +389,7 @@ user and needs no permission; `guest_checkout` governs guests.
 | `order_number_prefix` | `#` | Shown before every order number, such as # or INV- |
 | `order_number_padding` | `0` | Pad order numbers with zeros to at least this many digits. 0 does not pad |
 | `order_number_start` | `1000` | The number of the first order. Changing it later only affects orders placed after |
+| `order_number_random` | `false` | Give each order a random 8-digit number instead of 1001, 1002 and so on, so nobody can tell how many orders the shop has had or guess another order's number. The prefix still applies; the padding and first number do not |
 | `restock_on_refund` | `true` | Whether refunded products go back into quantity by default. It can be changed for each refund |
 | `refund_policy` | `(blank)` | Shown to the customer at checkout, and kept with the order as what they agreed to |
 | `mini_cart_side` | `right` | Which side of the page the mini-cart opens from: left or right |
@@ -409,28 +430,24 @@ revenue today and this week.
 
 ## The checkout page, and adding to it
 
-One page and one button. Down the left: contact and billing, an account when one is wanted, the extra fields
-extensions ask for, and then **Payment**: how much store credit to use, how many credits to use, and the card
-for whatever is left, which is only shown when something is left to pay. On the right: the order, the refund
-policy and **Place order**. Pressing it makes the order, makes the card payment and charges the card in the
-same step; a declined card leaves the order saved and the form in front of the customer to try again. The
-card fields are `<k-pay-form deferred>` from kempo-payments (needs `kempo-payments >=0.3.0`).
+One page and one button. Down the left is an accordion, one panel open at a time: **Contact** (name, email, an account when one is wanted, and the extra fields extensions ask for), **Billing address** (country, address, and the tax it sets), **Store credit and credits** (when the customer has either), and **Payment** (the card for whatever is left, shown only when something is left to pay). On the right: the order, the refund policy, anything an extension puts under the summary, and **Place order**. Pressing it makes the order, makes the card payment and charges the card in the same step; a declined card leaves the order saved and the form in front of the customer to try again. The card fields are `<k-pay-form deferred>` from kempo-payments (needs `kempo-payments >=0.3.0`).
 
-Another extension (a coupon box, an affiliate code, a sales banner) adds its own element to the page:
+Another extension (a shipping address, a coupon box, a sales banner) adds to the page with `registerCheckoutSection`:
 
 ```javascript
 import { registerCheckoutSection } from '/commerce/components/checkoutSections.js';
 
-const TAG = 'k-coupons-box';
-customElements.define(TAG, CouponsBox);
-registerCheckoutSection(TAG, { where: 'payment' });
+const TAG = 'k-shipping-address';
+customElements.define(TAG, ShippingAddress);
+registerCheckoutSection(TAG, { title: 'Shipping address', priority: 300 });
 ```
 
-| `where` | Placed |
+| Option | Meaning |
 |---|---|
-| `details` | after contact and billing, before the payment section |
-| `payment` | at the top of the payment section, above store credit, credits and the card |
-| `summary` | under the order summary, above the button that places the order |
+| `title` | The panel's heading. Required for a panel |
+| `priority` | Where the panel goes, highest first. Contact is 500, billing 400, credits 200 and payment 100, so 300 lands between billing and credits |
+| `id` | Names the panel, default the tag. `contact`, `billing`, `credits` and `payment` are reserved |
+| `where` | `panel` (default) for an accordion panel, or `summary` for an element under the order summary, above the button |
 
 The element is handed `checkout`, the page: `checkout.quote` (the server's cart, totals, tenders and plan),
 `checkout.form` (the contact and billing so far), `checkout.reprice()` (ask the server for the totals again,

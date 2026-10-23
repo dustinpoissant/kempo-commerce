@@ -64,7 +64,7 @@ export default {
       return cart.id;
     };
     const checkoutKey = key().slice(0, 30);
-    const [, first] = await placeOrder({ cartId: await made(), checkoutKey, billing: { name: 'A', email: 'a@example.test' } });
+    const [, first] = await placeOrder({ cartId: await made(), checkoutKey, billing: { name: 'A', email: 'a@example.test', line1: '1 Test St' } });
     const dup = await db.insert(kempoCommerceOrder).values({ ...first.order, id: 'ord_dup', number: 999999, orderKey: 'another-key' }).then(() => 'inserted', () => 'refused');
     if(dup !== 'refused') return fail('two orders with one checkout key were accepted');
     const sameNumber = await db.insert(kempoCommerceOrder).values({ ...first.order, id: 'ord_dup2', checkoutKey: null, orderKey: 'yet-another' }).then(() => 'inserted', () => 'refused');

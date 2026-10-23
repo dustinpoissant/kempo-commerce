@@ -51,6 +51,8 @@ export { getOrder, getOrderByKey, listOrders, forCustomer, STATUSES as orderStat
 export { setOrderStatus } from './server/utils/orders/status.js';
 export { setLineFulfillment } from './server/utils/orders/fulfillment.js';
 export { addOrderNote } from './server/utils/orders/notes.js';
+export { setOrderData, addOrderEvent } from './server/utils/orders/data.js';
+export { contactCustomer } from './server/utils/orders/contact.js';
 export { getOrderEvents } from './server/utils/orders/events.js';
 export { linkGuestOrders } from './server/utils/orders/link.js';
 export { formatOrderNumber } from './server/utils/orders/number.js';

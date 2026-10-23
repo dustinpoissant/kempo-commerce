@@ -53,6 +53,7 @@ export const VALIDATORS = {
   order_number_prefix: text('The order number prefix', 20),
   order_number_padding: number('Order number padding', 0, 12),
   order_number_start: number('The first order number', 0, 1000000000),
+  order_number_random: flag('Random order numbers'),
   restock_on_refund: flag('Restock on refund'),
   refund_policy: text('The refund policy', 5000),
   price_floor_notice: text('The minimum price notice', 300),

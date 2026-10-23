@@ -119,6 +119,7 @@ export const kempoCommerceOrderLine = pgTable('kempoCommerceOrderLine', {
   refundedQuantity: integer('refundedQuantity').notNull().default(0),
   creditsGranted: integer('creditsGranted').notNull().default(0),
   creditsOnly: boolean('creditsOnly').notNull().default(false),
+  productType: text('productType').notNull().default('generic'), // what kind of product it was, from kempo-products' product types, as it was when the order was placed
   data: jsonb('data').notNull().default({}),
 }, table => [
   index('kempoCommerceOrderLine_order_idx').on(table.orderId),

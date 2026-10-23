@@ -34,7 +34,7 @@ const refused = ([error], code) => {
 const quantityOf = async product => ok(await getProduct(product.id)).quantity;
 
 /* A paid order: `items` is [[product, quantity], ...], paid by card, or with store credit first when `credit` is given. */
-const paidOrder = async (items, { userId = null, tenders = {}, billing = { name: 'Buyer', email: 'buyer@example.test' } } = {}) => {
+const paidOrder = async (items, { userId = null, tenders = {}, billing = { name: 'Buyer', email: 'buyer@example.test', line1: '1 Test St' } } = {}) => {
   const { cart } = ok(await resolveCart({ userId }));
   for(const [product, quantity] of items) ok(await addToCart({ cartId: cart.id, productId: product.id, quantity }));
   const { order, payment } = ok(await placeOrder({ cartId: cart.id, userId, checkoutKey: key().slice(0, 30), billing, tenders }));
@@ -181,7 +181,7 @@ export default {
     const item = await makeProduct({ price: 600, quantity: 3 });
     const { cart } = ok(await resolveCart({}));
     ok(await addToCart({ cartId: cart.id, productId: item.id }));
-    const { order: unpaid } = ok(await placeOrder({ cartId: cart.id, checkoutKey: key().slice(0, 30), billing: { name: 'Buyer', email: 'b@example.test' } }));
+    const { order: unpaid } = ok(await placeOrder({ cartId: cart.id, checkoutKey: key().slice(0, 30), billing: { name: 'Buyer', email: 'b@example.test', line1: '1 Test St' } }));
     refused(await previewRefund({ orderId: unpaid.id, amount: 100 }), 409);
 
     const order = await paidOrder([[item, 1]]);

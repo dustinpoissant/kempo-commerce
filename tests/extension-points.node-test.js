@@ -49,7 +49,7 @@ const stopListening = async () => {
   clearHandlerCache();
 };
 
-const BILLING = { name: 'Fixture Buyer', email: 'fixture@example.test' };
+const BILLING = { name: 'Fixture Buyer', email: 'fixture@example.test', line1: '1 Test St' };
 
 const cartWith = async (product, quantity = 1) => {
   const { cart } = ok(await resolveCart({}));
@@ -164,7 +164,7 @@ export default {
       const { order } = ok(await placeOrder({ cartId: await cartWith(item), checkoutKey: key().slice(0, 30), billing: BILLING }));
       const [error] = await sendOrderEmail(order, 'order-processing', 'Test');
       /* Nothing is configured to send it, so the send fails; what matters is that the guard ran and nothing broke. */
-      if(error && !/RESEND|configured|not found/i.test(error.msg)) return fail(error.msg);
+      if(error && !/No email extension|configured|not found/i.test(error.msg)) return fail(error.msg);
     } finally {
       await stopListening();
     }

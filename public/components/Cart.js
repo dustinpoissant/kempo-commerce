@@ -4,7 +4,7 @@ import '/kempo-ui/components/Icon.js';
 import '/kempo-ui/components/Spinner.js';
 import '/commerce/components/CartQty.js';
 import { getCart, updateLine, removeLine, announceCartChanged, onCartChanged } from '/commerce/sdk.js';
-import { loadFormat, optionsText } from '/commerce/utils/format.js';
+import { loadFormat, optionsText, itemNames } from '/commerce/utils/format.js';
 
 /* A table with no header row has no top border or rounded top corners of its own, so its first row draws them. */
 const TOP_LEFT = 'border-top: 1px solid var(--c_border); border-top-left-radius: var(--radius);';
@@ -63,12 +63,13 @@ export default class Cart extends ShadowComponent {
     await this.refresh();
   };
 
-  /* The cart shows one row per kind of discount or fee, adding up what it took across the lines. */
+  /* The cart shows one row per kind of discount or fee, adding up what it took across the lines, and which lines. */
   adjustmentRows = adjustments => {
     const rows = new Map();
     for(const adjustment of adjustments){
       const key = `${adjustment.type}|${adjustment.label}`;
-      rows.set(key, { ...adjustment, amount: (rows.get(key)?.amount ?? 0) + adjustment.amount });
+      const row = rows.get(key);
+      rows.set(key, { ...adjustment, amount: (row?.amount ?? 0) + adjustment.amount, lineIds: [...(row?.lineIds ?? []), ...(adjustment.lineId ? [adjustment.lineId] : [])] });
     }
     return [...rows.values()];
   };
@@ -153,7 +154,7 @@ export default class Cart extends ShadowComponent {
           <table class="mb">
             <tbody>
               <tr><td style=${`background-color: var(--c_bg__alt); ${TOP_LEFT}`}><strong>Subtotal</strong></td><td class="ta-right" style=${TOP_RIGHT}>${this.money(cart.totals.subtotal)}</td></tr>
-              ${this.adjustmentRows(cart.adjustments).map(adjustment => html`<tr><td style="background-color: var(--c_bg__alt);"><strong>${adjustment.label}</strong></td><td class="ta-right">${this.money(adjustment.amount)}</td></tr>`)}
+              ${this.adjustmentRows(cart.adjustments).map(adjustment => html`<tr><td style="background-color: var(--c_bg__alt);"><strong>${adjustment.label}</strong>${itemNames(adjustment.lineIds, cart.lines) ? html`<small class="d-b tc-muted">${itemNames(adjustment.lineIds, cart.lines)}</small>` : nothing}</td><td class="ta-right">${this.money(adjustment.amount)}</td></tr>`)}
               <tr><td style="background-color: var(--c_bg__alt);"><strong>Total</strong></td><td class="ta-right"><strong>${this.money(cart.totals.total)}</strong></td></tr>
             </tbody>
           </table>

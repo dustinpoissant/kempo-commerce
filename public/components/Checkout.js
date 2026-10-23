@@ -1,13 +1,15 @@
 import LightComponent from '/kempo-ui/components/LightComponent.js';
-import { html, nothing, live } from '/kempo-ui/lit-all.min.js';
+import { html, staticHtml, unsafeStatic, keyed, nothing, live } from '/kempo-ui/lit-all.min.js';
 import '/kempo-ui/components/Icon.js';
 import '/kempo-ui/components/Spinner.js';
+import '/kempo-ui/components/Accordion.js';
+import Toast from '/kempo-ui/components/Toast.js';
 import '/payments/components/PaymentForm.js';
 import { startCheckout, validateCheckout, placeOrder, confirmPayment, getRegions, onCartChanged, newKey } from '/commerce/sdk.js';
-import { loadFormat, optionsText } from '/commerce/utils/format.js';
+import { loadFormat, optionsText, itemNames } from '/commerce/utils/format.js';
 import { toMinor, fromMinor, toCount, clamp } from '/commerce/utils/amount.js';
 import { countryOptions, subdivisionOptions } from '/commerce/utils/regions.js';
-import { syncCheckoutSections } from '/commerce/components/checkoutSections.js';
+import { checkoutSections } from '/commerce/components/checkoutSections.js';
 
 /* A table with no header row has no top border or rounded top corners of its own, so its first row draws them. */
 const TOP_LEFT = 'border-top: 1px solid var(--c_border); border-top-left-radius: var(--radius);';
@@ -21,16 +23,16 @@ const TOP_RIGHT = 'border-top: 1px solid var(--c_border); border-top-right-radiu
   <k-commerce-checkout></k-commerce-checkout>
   ```
 
-  One page, one button. Down the left: who you are and where, an account if one is wanted (and required
-  when the cart has credits for sale), the fields extensions asked for, and then **Payment**: how much
-  store credit to use, how many credits, and the card for whatever is left, all on this page. On the
-  right: the order, the refund policy and the button that places it.
+  One page, one button. Down the left, an accordion of panels, one open at a time: **Contact** (who you are,
+  an account if one is wanted, and the fields extensions asked for), **Billing address** (where, which sets
+  the tax), **Store credit and credits** (when the customer has either), and **Payment** (the card for
+  whatever is left). Extensions add panels of their own, a shipping address for one, by priority. On the
+  right: the order, the refund policy, anything an extension puts under the summary, and the button.
 
   Placing the order makes it, makes the card payment, and charges the card in the same press. A card
   that is declined leaves the order saved with the form still in front of you, to try again.
 
-  **Other extensions** add to the page with `registerCheckoutSection` (checkoutSections.js): a coupon box
-  in the payment section, an affiliate code after the contact details. See that file.
+  **Other extensions** add to the page with `registerCheckoutSection` (checkoutSections.js). See that file.
 
   **Light DOM, on purpose.** Stripe's card fields do not mount inside a shadow root (they reserve the
   space and draw nothing), so the payment form, and everything around it, is light DOM.
@@ -67,6 +69,7 @@ export default class Checkout extends LightComponent {
     errors: { state: true },
     error: { state: true },
     busy: { state: true },
+    finished: { state: true },
     pricing: { state: true },
     placed: { state: true },
     regions: { state: true },
@@ -83,6 +86,7 @@ export default class Checkout extends LightComponent {
     this.errors = {};
     this.error = '';
     this.busy = false;
+    this.finished = false;
     this.pricing = false;
     this.placed = null;
     this.regions = null;
@@ -90,6 +94,11 @@ export default class Checkout extends LightComponent {
     this.money = minor => String(minor);
     this.priceRequest = 0;
     this.timer = null;
+    this.completed = new Set();
+    this.visited = new Set();
+    this.userOpened = new Set();
+    this.automating = false;
+    this.initialized = false;
   }
 
   /*
@@ -111,9 +120,9 @@ export default class Checkout extends LightComponent {
 
   updated(){
     super.updated();
-    for(const container of this.querySelectorAll('[data-checkout-sections]')){
-      syncCheckoutSections(container, container.dataset.checkoutSections, { checkout: this });
-    }
+    this.settle();
+    /* The sections read `checkout.quote` (the shipping choices), so they draw again whenever the page does. */
+    for(const { tag } of [...checkoutSections('panel'), ...checkoutSections('summary')]) this.querySelectorAll(tag).forEach($section => $section.requestUpdate?.());
   }
 
   refreshSections = () => this.requestUpdate();
@@ -166,7 +175,7 @@ export default class Checkout extends LightComponent {
     if(!this.quote || this.quote.empty) return;
     const request = ++this.priceRequest;
     this.pricing = true;
-    const [error, data] = await validateCheckout({ billing: this.form, tenders: this.tenders });
+    const [error, data] = await validateCheckout({ billing: this.form, data: this.extra, tenders: this.tenders });
     if(request !== this.priceRequest) return;
     this.pricing = false;
     if(error){
@@ -246,6 +255,15 @@ export default class Checkout extends LightComponent {
     return missing;
   }
 
+  /* What a section says keeps the order from being placed at all (shipping that cannot be priced), or '' when nothing does. */
+  get blocker(){
+    for(const { tag } of [...checkoutSections('panel'), ...checkoutSections('summary')]){
+      const reason = this.querySelector(tag)?.blocker;
+      if(reason) return reason;
+    }
+    return '';
+  }
+
   get needsCard(){
     return Boolean(this.quote?.plan?.some(entry => entry.kind === 'card'));
   }
@@ -299,6 +317,10 @@ export default class Checkout extends LightComponent {
   place = async event => {
     event.preventDefault();
     const { quote } = this;
+    if(this.blocker){
+      this.error = this.blocker;
+      return;
+    }
     if(this.needsCard && !this.payForm?.complete){
       this.error = 'Enter your card details to place the order.';
       return;
@@ -327,7 +349,7 @@ export default class Checkout extends LightComponent {
 
     this.placed = data;
     if(data.payment) await this.pay(data);
-    else this.finish(data.receivedUrl);
+    else this.finish(data.receivedUrl, false);
   };
 
   /*
@@ -346,14 +368,27 @@ export default class Checkout extends LightComponent {
       const key = new URL(data.receivedUrl, location.origin).searchParams.get('key');
       await confirmPayment(data.order.id, key);
     }
-    this.finish(data.receivedUrl);
+    this.finish(data.receivedUrl, true);
   };
 
-  finish = url => {
+  /*
+    The order is placed (and paid, when a card was needed). The form is locked so nothing can be changed or sent twice,
+    and a toast says so with a way to the order. Closing the toast for any reason, its button or its ten seconds running
+    out, goes to the order, once.
+  */
+  finish = (url, paid) => {
     try {
       sessionStorage.removeItem('kempo-commerce-checkout');
     } catch { /* storage may be blocked; the next checkout simply makes a new key */ }
-    location.href = url;
+    this.busy = true;
+    this.finished = true;
+    let left = false;
+    const go = () => {
+      if(left) return;
+      left = true;
+      location.href = url;
+    };
+    Toast.success(paid ? 'Payment complete. Your order is placed.' : 'Your order is placed.', { timeout: 10000, action: 'View order', actionCallback: go, closeCallback: go });
   };
 
   /*
@@ -400,7 +435,7 @@ export default class Checkout extends LightComponent {
         <tbody>
           ${quote.cart.lines.map((line, index) => html`<tr><td style=${index === 0 ? TOP_LEFT : nothing}>${line.name} <span class="tc-muted">× ${line.quantity}</span>${optionsText(line) ? html`<div class="tc-muted small">${optionsText(line)}</div>` : nothing}</td><td class="ta-right" style=${index === 0 ? TOP_RIGHT : nothing}>${this.money(line.lineTotal)}</td></tr>`)}
           <tr><td style="background-color: var(--c_bg__alt);"><strong>Subtotal</strong></td><td class="ta-right">${this.money(totals.subtotal)}</td></tr>
-          ${quote.cart.adjustments.map(adjustment => html`<tr><td style="background-color: var(--c_bg__alt);"><strong>${adjustment.label}</strong></td><td class="ta-right">${this.money(adjustment.amount)}</td></tr>`)}
+          ${quote.cart.adjustments.map(adjustment => html`<tr><td style="background-color: var(--c_bg__alt);"><strong>${adjustment.label}</strong>${itemNames(adjustment.lineId, quote.cart.lines) ? html`<small class="d-b tc-muted">${itemNames(adjustment.lineId, quote.cart.lines)}</small>` : nothing}</td><td class="ta-right">${this.money(adjustment.amount)}</td></tr>`)}
           ${totals.taxComputed ? html`<tr><td style="background-color: var(--c_bg__alt);"><strong>Tax${totals.pricesIncludeTax ? ' (included)' : ''}</strong></td><td class="ta-right">${this.money(totals.taxTotal)}</td></tr>`
             : quote.taxEnabled ? html`<tr><td style="background-color: var(--c_bg__alt);"><strong>Tax</strong></td><td class="ta-right tc-muted">Enter your address to calculate</td></tr>` : nothing}
           ${quote.plan.filter(entry => entry.kind !== 'card').map(entry => html`<tr><td style="background-color: var(--c_bg__alt);"><strong>${quote.tenders.find(offer => offer.kind === entry.kind)?.label ?? entry.kind}</strong></td><td class="ta-right">−${this.money(entry.amount)}</td></tr>`)}
@@ -411,16 +446,153 @@ export default class Checkout extends LightComponent {
     `;
   }
 
-  renderPayment(){
+  /*
+    The accordion. Each panel is `{ id, title, priority, body }` for the checkout's own, or `{ id, title, priority, tag }`
+    for one an extension registered, which is created here and handed the page.
+  */
+
+  get panels(){
     const { quote } = this;
+    const panels = [
+      { id: 'contact', title: 'Contact', priority: 500, body: this.renderContact() },
+      { id: 'billing', title: 'Billing address', priority: 400, body: this.renderBilling() },
+      ...(this.offer('store-credit') || this.offer('credits') ? [{ id: 'credits', title: 'Store credit and credits', priority: 200, body: this.renderCredits() }] : []),
+      ...(this.needsCard || quote.plan.some(entry => entry.kind !== 'card') ? [{ id: 'payment', title: 'Payment', priority: 100, body: this.renderPayment() }] : []),
+      ...checkoutSections('panel').map(({ id, title, priority, tag }) => ({ id, title, priority, tag })),
+    ];
+    return panels.sort((a, b) => b.priority - a.priority);
+  }
+
+  /*
+    Several panels can be open. settle() opens and closes them by what is filled in; a panel the customer
+    opened themselves stays open until they close it. Keyed, so a panel that comes and goes keeps the rest's state.
+  */
+  renderPanels(){
+    return html`
+      <k-accordion multiple @openpanel=${event => this.panelToggled(event, true)} @closepanel=${event => this.panelToggled(event, false)} @focusout=${this.panelBlurred}>
+        ${this.panels.map(panel => keyed(panel.id, html`
+          <k-accordion-header for-panel=${panel.id}>${panel.title}</k-accordion-header>
+          <k-accordion-panel name=${panel.id}>
+            <div class="p">
+              ${panel.tag ? staticHtml`<${unsafeStatic(panel.tag)} .checkout=${this}></${unsafeStatic(panel.tag)}>` : panel.body}
+            </div>
+          </k-accordion-panel>
+        `))}
+      </k-accordion>
+    `;
+  }
+
+  get accordion(){
+    return this.querySelector('k-accordion');
+  }
+
+  /*
+    Whether a panel's fields are all filled in. The checkout's own: contact is a name, an email (unless signed in)
+    and any extra field an extension requires; billing is the country, address, city and postal code, and the
+    state when there is a list of them (the apartment line is optional). Credits are optional, so they are done
+    once the customer has been in them and left. Payment is done when no card is needed or the card is complete.
+    An extension's panel is done when its element says so with `complete = true`.
+  */
+  isComplete({ id, tag }){
+    const { form, quote, extra } = this;
+    if(tag) return this.querySelector(tag)?.complete === true;
+    if(id === 'contact') return Boolean(form.name?.trim()) && (quote.account.signedIn || Boolean(form.email?.trim())) && quote.fields.every(field => !field.required || Boolean(extra[field.key]));
+    if(id === 'billing') return Boolean(form.country && form.line1?.trim() && form.city?.trim() && form.postalCode?.trim()) && (this.stateOptions.length === 0 || Boolean(form.state));
+    if(id === 'credits') return this.visited.has('credits');
+    return !this.needsCard || Boolean(this.payForm?.complete);
+  }
+
+  /*
+    Opens and closes panels to match what is filled in. When a panel has just become done, the next one that is
+    not done opens. A done panel closes once focus is out of it, unless the customer opened it themselves.
+  */
+  settle = () => {
+    const { accordion } = this;
+    if(!accordion || !this.quote || this.quote.empty) return;
+    const panels = this.panels;
+    const focused = document.activeElement?.closest?.('k-accordion-panel')?.getAttribute('name');
+    const done = new Set(panels.filter(panel => this.isComplete(panel)).map(panel => panel.id));
+    const isOpen = id => accordion.getPanel(id)?.active === true;
+    const open = id => {
+      if(!isOpen(id)) accordion.openPanel(id);
+    };
+    this.automating = true;
+    try {
+      if(!this.initialized){
+        const first = panels.find(panel => !done.has(panel.id));
+        if(first) open(first.id);
+      }
+      panels.forEach((panel, index) => {
+        if(!done.has(panel.id) || this.completed.has(panel.id)) return;
+        const next = panels.slice(index + 1).find(later => !done.has(later.id));
+        if(next) open(next.id);
+      });
+      for(const panel of panels){
+        if(done.has(panel.id) && panel.id !== focused && !this.userOpened.has(panel.id) && isOpen(panel.id)) accordion.closePanel(panel.id);
+      }
+    } finally {
+      this.automating = false;
+    }
+    this.completed = done;
+    this.initialized = true;
+  };
+
+  /* The customer opened or closed a panel. Closing one counts as having been in it. */
+  panelToggled = (event, opened) => {
+    if(this.automating) return;
+    const name = event.detail.panelName;
+    if(opened) this.userOpened.add(name);
+    else {
+      this.userOpened.delete(name);
+      this.visited.add(name);
+    }
+  };
+
+  /* Focus left a field: note the panel was used, then settle once focus has actually moved. */
+  panelBlurred = event => {
+    const name = event.target.closest?.('k-accordion-panel')?.getAttribute('name');
+    if(name) this.visited.add(name);
+    setTimeout(this.settle);
+  };
+
+  renderContact(){
+    const { quote } = this;
+    return html`
+      ${this.field('name', 'Full name', { required: true, autocomplete: 'name' })}
+      ${quote.account.signedIn ? nothing : this.field('email', 'Email', { type: 'email', required: true, hint: 'Your receipt and the link to your order are sent here', autocomplete: 'email' })}
+
+      ${quote.account.signedIn ? nothing : html`
+        <h3 class="h5">Account</h3>
+        ${quote.account.required
+          ? html`<p>${quote.account.reason === 'credits' ? 'Credits are added to an account, so one is needed to buy them.' : 'This store needs you to have an account to check out.'} We will make one with the email above and send you a link to set your password. <a href=${`/login?redirect=${encodeURIComponent('/checkout/')}`}>Already have one? Sign in</a>.</p>`
+          : quote.account.canCreate ? html`<label class="checkbox mb"><input type="checkbox" .checked=${this.createAccount} @change=${event => { this.createAccount = event.target.checked; }}> Create an account so I can follow my order and check out faster next time</label>` : nothing}
+      `}
+
+      ${quote.fields.length ? html`<h3 class="h5">More details</h3>${quote.fields.map(field => this.renderExtraField(field))}` : nothing}
+    `;
+  }
+
+  renderBilling(){
+    const { quote } = this;
+    return html`
+      ${this.regions
+        ? this.select('country', 'Country', countryOptions(this.regions, this.language), { required: quote.required?.country, hint: quote.required?.country ? 'Tax depends on it' : '', autocomplete: 'country', placeholder: 'Select a country' })
+        : this.field('country', 'Country', { required: quote.required?.country, hint: 'A two-letter code, such as US or GB', autocomplete: 'country' })}
+      ${this.field('line1', 'Address', { required: true, autocomplete: 'address-line1' })}
+      ${this.field('line2', 'Apartment, suite, etc.', { autocomplete: 'address-line2' })}
+      ${this.field('city', 'City', { autocomplete: 'address-level2' })}
+      ${this.stateOptions.length
+        ? this.select('state', 'State or region', this.stateOptions, { required: quote.required?.state, hint: quote.required?.state ? 'Tax depends on it' : '', autocomplete: 'address-level1', placeholder: 'Select a state or region' })
+        : this.field('state', 'State or region', { autocomplete: 'address-level1' })}
+      ${this.field('postalCode', 'Postal code', { required: quote.required?.postalCode, hint: quote.required?.postalCode ? 'Tax depends on it' : '', autocomplete: 'postal-code' })}
+    `;
+  }
+
+  renderCredits(){
     const store = this.offer('store-credit');
     const credits = this.offer('credits');
     const step = (1 / 10 ** this.decimals).toFixed(this.decimals);
-    const covered = quote.totals.total > 0 && !this.needsCard;
     return html`
-      <h2 class="h4">Payment</h2>
-      <div data-checkout-sections="payment"></div>
-
       ${store ? html`
         <label class="mb">
           Store credit to use
@@ -436,12 +608,19 @@ export default class Checkout extends LightComponent {
           <input type="number" min="0" max=${this.creditsCap} step="1" .value=${live(String(this.creditsUsed))} @change=${this.setCredits} style="max-width: 12rem;">
         </label>
       ` : nothing}
+    `;
+  }
 
+  renderPayment(){
+    const { quote } = this;
+    const store = this.offer('store-credit');
+    const credits = this.offer('credits');
+    const covered = quote.totals.total > 0 && !this.needsCard;
+    return html`
       ${covered ? html`<p class="tc-muted">Your ${store && credits ? 'store credit and credits cover' : store ? 'store credit covers' : 'credits cover'} this order, so there is nothing to pay by card.</p>` : nothing}
 
       ${quote.totals.total > 0 ? html`
         <div ?hidden=${!this.needsCard}>
-          <h3 class="h5">Card</h3>
           <p class="small tc-muted">${store || credits ? 'Pays what is left after the above. ' : ''}Your card details go straight to our payment processor. They never touch this site.</p>
           <k-pay-form deferred .postalCode=${this.form.postalCode} @card-change=${this.refreshSections}></k-pay-form>
         </div>
@@ -452,45 +631,21 @@ export default class Checkout extends LightComponent {
   renderForm(){
     const { quote } = this;
     return html`
-      <form class="row" @submit=${this.place}>
+      <form class="row" @submit=${this.place} ?inert=${this.finished}>
         <div class="span-12 d-span-7" style="padding-right: var(--spacer);">
           ${this.error ? html`<p class="tc-danger" role="alert">${this.error}</p>` : nothing}
           ${quote.cart.notices.map(notice => html`<p class=${notice.blocking ? 'tc-danger' : 'tc-warning'}>${notice.message}</p>`)}
 
-          <h2 class="h4">Contact and billing</h2>
-          ${this.field('name', 'Full name', { required: true, autocomplete: 'name' })}
-          ${quote.account.signedIn ? nothing : this.field('email', 'Email', { type: 'email', required: true, hint: 'Your receipt and the link to your order are sent here', autocomplete: 'email' })}
-          ${this.regions
-            ? this.select('country', 'Country', countryOptions(this.regions, this.language), { required: quote.required?.country, hint: quote.required?.country ? 'Tax depends on it' : '', autocomplete: 'country', placeholder: 'Select a country' })
-            : this.field('country', 'Country', { required: quote.required?.country, hint: 'A two-letter code, such as US or GB', autocomplete: 'country' })}
-          ${this.field('line1', 'Address', { autocomplete: 'address-line1' })}
-          ${this.field('line2', 'Apartment, suite, etc.', { autocomplete: 'address-line2' })}
-          ${this.field('city', 'City', { autocomplete: 'address-level2' })}
-          ${this.stateOptions.length
-            ? this.select('state', 'State or region', this.stateOptions, { required: quote.required?.state, hint: quote.required?.state ? 'Tax depends on it' : '', autocomplete: 'address-level1', placeholder: 'Select a state or region' })
-            : this.field('state', 'State or region', { autocomplete: 'address-level1' })}
-          ${this.field('postalCode', 'Postal code', { required: quote.required?.postalCode, hint: quote.required?.postalCode ? 'Tax depends on it' : '', autocomplete: 'postal-code' })}
-
-          ${quote.account.signedIn ? nothing : html`
-            <h2 class="h4">Account</h2>
-            ${quote.account.required
-              ? html`<p>${quote.account.reason === 'credits' ? 'Credits are added to an account, so one is needed to buy them.' : 'This store needs you to have an account to check out.'} We will make one with the email above and send you a link to set your password. <a href=${`/login?redirect=${encodeURIComponent('/checkout/')}`}>Already have one? Sign in</a>.</p>`
-              : quote.account.canCreate ? html`<label class="checkbox mb"><input type="checkbox" .checked=${this.createAccount} @change=${event => { this.createAccount = event.target.checked; }}> Create an account so I can follow my order and check out faster next time</label>` : nothing}
-          `}
-
-          ${quote.fields.length ? html`<h2 class="h4">More details</h2>${quote.fields.map(field => this.renderExtraField(field))}` : nothing}
-
-          <div data-checkout-sections="details"></div>
-
-          ${this.renderPayment()}
+          ${this.renderPanels()}
         </div>
 
         <div class="span-12 d-span-5">
           ${this.renderSummary()}
-          <div data-checkout-sections="summary"></div>
-          <button class="primary full" ?disabled=${this.busy || this.pricing || this.missing.length > 0}>
-            ${this.busy ? (this.placed ? 'Paying…' : 'Placing your order…') : (this.placed ? 'Try payment again' : 'Place order')}
+          ${checkoutSections('summary').map(({ tag }) => staticHtml`<${unsafeStatic(tag)} .checkout=${this}></${unsafeStatic(tag)}>`)}
+          <button class="primary full" ?disabled=${this.busy || this.pricing || this.missing.length > 0 || Boolean(this.blocker)}>
+            ${this.finished ? 'Order placed' : this.busy ? (this.placed ? 'Paying…' : 'Placing your order…') : (this.placed ? 'Try payment again' : 'Place order')}
           </button>
+          ${this.blocker && !this.busy ? html`<p class="small tc-danger mt" role="alert">${this.blocker}</p>` : nothing}
           ${this.missing.length && !this.busy ? html`<p class="small tc-muted mt">To place your order, add ${this.missing.join(', ').replace(/, ([^,]*)$/, ' and $1')}.</p>` : nothing}
         </div>
       </form>

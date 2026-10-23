@@ -34,7 +34,7 @@ export const collectFields = async cart => {
   return fields.filter(field => field && typeof field.key === 'string' && typeof field.label === 'string');
 };
 
-export const startCheckout = async ({ cartId, userId = null, billing = null, tenders = {} } = {}) => {
+export const startCheckout = async ({ cartId, userId = null, billing = null, data = {}, tenders = {} } = {}) => {
   const [cartError, cart] = await getCart({ cartId });
   if(cartError) return [cartError, null];
   /* 'checkout' is the cart while a placement is in progress, which is when placeOrder prices it again. */
@@ -43,6 +43,8 @@ export const startCheckout = async ({ cartId, userId = null, billing = null, ten
   if(cart.blocked) return [{ code: 409, msg: 'Something in your cart needs your attention before you can check out', notices: cart.notices }, null];
 
   const config = await readConfig();
+  /* The fees that depend on what the customer has entered (shipping) are worked out here, with those details. */
+  cart.adjustments = await collectAdjustments({ cart, checkout: { billing, data: data ?? {} } });
   const [taxError, tax] = await quoteTax({ lines: cart.lines, adjustments: cart.adjustments, billing, currency: cart.currency, cart });
   if(taxError) return [taxError, null];
 

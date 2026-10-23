@@ -24,7 +24,7 @@ const ok = ([error, value]) => {
   return value;
 };
 
-const BILLING = { name: 'Sweep Buyer', email: 'sweep@example.test' };
+const BILLING = { name: 'Sweep Buyer', email: 'sweep@example.test', line1: '1 Test St' };
 
 const cartWith = async (product, userId = null) => {
   const { cart } = ok(await resolveCart({ userId }));
