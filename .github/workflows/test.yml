@@ -33,7 +33,7 @@ jobs:
       # legacy-peer-deps (set repo-wide in .npmrc) makes a bare `npm install <peer-name>` silently
       # no-op; --no-legacy-peer-deps forces a real install and --force gets past the ERESOLVE.
       - name: Install the host for the test gate
-        run: npm install --no-save --no-legacy-peer-deps --force kempo@latest kempo-ui@latest kempo-server@latest kempo-products@latest kempo-payments@latest kempo-credits@latest kempo-store-credit@latest kempo-tax@latest
+        run: npm install --no-save --save-dev --no-legacy-peer-deps --force kempo@latest kempo-ui@latest kempo-server@latest kempo-products@latest kempo-payments@latest kempo-credits@latest kempo-store-credit@latest kempo-tax@latest
 
       - name: Run unit tests
         run: npm test
@@ -71,7 +71,7 @@ jobs:
       - run: npm ci
 
       - name: Install the host for the test gate
-        run: npm install --no-save --no-legacy-peer-deps --force kempo@latest kempo-ui@latest kempo-server@latest kempo-products@latest kempo-payments@latest kempo-credits@latest kempo-store-credit@latest kempo-tax@latest
+        run: npm install --no-save --save-dev --no-legacy-peer-deps --force kempo@latest kempo-ui@latest kempo-server@latest kempo-products@latest kempo-payments@latest kempo-credits@latest kempo-store-credit@latest kempo-tax@latest
 
       - name: Install Chromium for the browser suite
         run: npx playwright install --with-deps chromium
