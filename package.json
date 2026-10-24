@@ -3,7 +3,7 @@
   "version": "0.1.1",
   "description": "Carts, orders and checkout for kempo: sells what kempo-products lists, takes payment through kempo-payments, and applies tax, store credit and credits when they are installed",
   "license": "MIT",
-  "author": "Dustin Poissant",
+  "author": "Dustin Poissant <dustinpoissant@gmail.com>",
   "type": "module",
   "main": "sdk.js",
   "scripts": {
