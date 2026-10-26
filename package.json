@@ -38,14 +38,14 @@
     "drizzle-orm": "^0.45.2"
   },
   "peerDependencies": {
-    "kempo": ">=4.9.6",
+    "kempo": ">=4.9.7",
     "kempo-credits": ">=0.3.0",
     "kempo-payments": ">=0.4.0",
     "kempo-products": ">=0.3.0",
     "kempo-server": ">=3.3.0",
     "kempo-store-credit": ">=0.1.0",
     "kempo-tax": ">=0.3.0",
-    "kempo-ui": ">=0.6.2"
+    "kempo-ui": ">=0.7.0"
   },
   "peerDependenciesMeta": {
     "kempo-credits": {

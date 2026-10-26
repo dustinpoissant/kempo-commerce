@@ -2,18 +2,26 @@ import ShadowComponent from '/kempo-ui/components/ShadowComponent.js';
 import { html, nothing } from '/kempo-ui/lit-all.min.js';
 import '/kempo-ui/components/Icon.js';
 import '/kempo-ui/components/Spinner.js';
+import '/kempo-ui/components/Table.js';
+import '/kempo-ui/components/controls/TcOpen.js';
+import '/kempo-ui/components/controls/TcFirstPage.js';
+import '/kempo-ui/components/controls/TcPrevPage.js';
+import '/kempo-ui/components/controls/TcNextPage.js';
+import '/kempo-ui/components/controls/TcLastPage.js';
+import '/kempo-ui/components/controls/TcPageSelect.js';
+import '/kempo-ui/components/controls/TcPageSize.js';
 import { listOrders } from '/commerce/sdk.js';
-import { loadFormat, formatDate, statusLabel, STATUS_COLORS, STATUS_LABELS } from '/commerce/utils/format.js';
+import { loadFormat, formatDate, statusLabel, STATUS_LABELS } from '/commerce/utils/format.js';
 
 /*
   The orders list, served at /admin/extension/kempo-commerce/components/Orders.js.
 
   Search by number, name or email, filter by status and date, newest first. Opening an order goes to its
-  own page, so the back button returns here with the search kept in the address.
+  own page, so the back button returns here with the search kept in the address. The table pages the
+  orders itself and fetches each page when it is shown.
 */
 export default class AdminOrders extends ShadowComponent {
   static properties = {
-    items: { state: true },
     total: { state: true },
     loading: { state: true },
     error: { state: true },
@@ -21,12 +29,10 @@ export default class AdminOrders extends ShadowComponent {
     status: { state: true },
     from: { state: true },
     to: { state: true },
-    page: { state: true },
   };
 
   constructor(){
     super();
-    this.items = [];
     this.total = 0;
     this.loading = true;
     this.error = '';
@@ -35,7 +41,6 @@ export default class AdminOrders extends ShadowComponent {
     this.status = params.get('status') ?? '';
     this.from = params.get('from') ?? '';
     this.to = params.get('to') ?? '';
-    this.page = Number(params.get('page')) || 1;
     this.money = minor => String(minor);
     this.timer = null;
   }
@@ -50,19 +55,38 @@ export default class AdminOrders extends ShadowComponent {
     await this.load();
   };
 
+  /* The filters as the API takes them. */
+  filters = () => ({ search: this.search, status: this.status, from: this.from, to: this.to });
+
   load = async () => {
+    await this.updateComplete;
+    const $table = this.renderRoot.querySelector('k-table');
     this.loading = true;
-    const [error, data] = await listOrders({ search: this.search, status: this.status, from: this.from, to: this.to, limit: 25, offset: (this.page - 1) * 25 });
+    const [error, data] = await listOrders({ ...this.filters(), limit: 25, offset: 0 });
     this.loading = false;
     if(error){
       this.error = error.msg;
       return;
     }
     this.error = '';
-    this.items = data.items;
     this.total = data.total;
+    $table.setData({
+      records: data.items.map(order => ({ ...order, _url: `/admin/extension/kempo-commerce/order/?id=${encodeURIComponent(order.id)}` })),
+      fields: [
+        { name: 'numberLabel', label: 'Order', size: 140, editable: false },
+        { name: 'placedAt', label: 'Date', size: 160, editable: false, formatter: formatDate },
+        { name: 'customer', label: 'Customer', editable: false, calculator: order => `${order.billing?.name ?? ''}${order.billing?.name ? ' · ' : ''}${order.email}${order.userId ? '' : ' · guest'}` },
+        { name: 'status', label: 'Status', size: 140, editable: false, calculator: order => statusLabel(order.status) },
+        { name: 'total', label: 'Total', size: 180, editable: false, calculator: order => `${this.money(order.total)}${order.refundedTotal ? ` · −${this.money(order.refundedTotal)} refunded` : ''}` },
+      ],
+    });
+    $table.setupFetchRecords(data.total, async (start, count) => {
+      const [fetchError, page] = await listOrders({ ...this.filters(), limit: count, offset: start });
+      if(fetchError) return [];
+      return page.items.map(order => ({ ...order, _url: `/admin/extension/kempo-commerce/order/?id=${encodeURIComponent(order.id)}` }));
+    });
     const params = new URLSearchParams();
-    for(const [name, value] of Object.entries({ search: this.search, status: this.status, from: this.from, to: this.to, page: this.page > 1 ? this.page : '' })){
+    for(const [name, value] of Object.entries(this.filters())){
       if(value) params.set(name, value);
     }
     history.replaceState(null, '', `${location.pathname}${params.size ? `?${params}` : ''}`);
@@ -70,18 +94,11 @@ export default class AdminOrders extends ShadowComponent {
 
   change = (name, event) => {
     this[name] = event.target.value;
-    this.page = 1;
     clearTimeout(this.timer);
     this.timer = setTimeout(this.load, name === 'search' ? 300 : 0);
   };
 
-  go = page => {
-    this.page = page;
-    this.load();
-  };
-
   render(){
-    const pages = Math.max(1, Math.ceil(this.total / 25));
     return html`
       <div class="row">
         <label class="span-12 d-span-4 pr mb">Search<small class="tc-muted d-b">Order number, name or email</small>
@@ -96,30 +113,23 @@ export default class AdminOrders extends ShadowComponent {
       </div>
 
       ${this.error ? html`<p class="tc-danger" role="alert">${this.error}</p>` : nothing}
-      ${this.loading && !this.items.length ? html`<k-spinner></k-spinner>` : nothing}
-      ${!this.loading && !this.items.length && !this.error ? html`<p class="tc-muted">No orders match.</p>` : nothing}
+      ${this.loading ? html`<k-spinner></k-spinner>` : nothing}
 
-      ${this.items.length ? html`
-        <div class="table-wrapper mb">
-          <table>
-            <thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Status</th><th class="ta-right">Total</th></tr></thead>
-            <tbody>
-              ${this.items.map(order => html`<tr>
-                <td><a href=${`/admin/extension/kempo-commerce/order/?id=${encodeURIComponent(order.id)}`}><strong>${order.numberLabel}</strong></a></td>
-                <td>${formatDate(order.placedAt)}</td>
-                <td>${order.billing?.name ?? ''}<div class="tc-muted small">${order.email}${order.userId ? '' : ' · guest'}</div></td>
-                <td class=${STATUS_COLORS[order.status] ?? ''}>${statusLabel(order.status)}</td>
-                <td class="ta-right">${this.money(order.total)}${order.refundedTotal ? html`<div class="tc-muted small">−${this.money(order.refundedTotal)} refunded</div>` : nothing}</td>
-              </tr>`)}
-            </tbody>
-          </table>
+      <k-table open-on-click enable-pages page-size="25" page-size-options="[10,25,50]" placeholder="No orders match.">
+        <kc-tc-open slot="before"></kc-tc-open>
+        <div class="d-f full" style="align-items: center;">
+          <div>
+            <kc-tc-first-page></kc-tc-first-page>
+            <kc-tc-prev-page></kc-tc-prev-page>
+            <kc-tc-next-page></kc-tc-next-page>
+            <kc-tc-last-page></kc-tc-last-page>
+          </div>
+          <div class="flex"></div>
+          <div><kc-tc-page-select></kc-tc-page-select></div>
+          <div class="flex"></div>
+          <div><kc-tc-page-size></kc-tc-page-size></div>
         </div>
-        <div class="d-f" style="align-items: center; gap: var(--spacer);">
-          <button ?disabled=${this.page <= 1} @click=${() => this.go(this.page - 1)}>Previous</button>
-          <span class="tc-muted">Page ${this.page} of ${pages} · ${this.total} order${this.total === 1 ? '' : 's'}</span>
-          <button ?disabled=${this.page >= pages} @click=${() => this.go(this.page + 1)}>Next</button>
-        </div>
-      ` : nothing}
+      </k-table>
     `;
   }
 }

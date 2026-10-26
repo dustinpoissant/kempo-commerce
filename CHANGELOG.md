@@ -109,3 +109,10 @@ Carts, orders, checkout and refunds for kempo, modelled on WooCommerce's core.
 ### Extending
 
 - 32 hooks, a server SDK, a browser SDK, `registerTender`, fragments for other extensions, a dashboard widget and admin pages for orders, refunds, carts and settings.
+
+## [0.1.3] - 2026-10-26
+### Changed
+- The orders list is a table with the built-in paging, which fetches each page as it is shown.
+- The carts list is a table with Open and Abandoned tabs, which keep the tab in the address. A row opens the cart at /admin/extension/kempo-commerce/cart/<id>.
+- The cart page is new. It shows each line at the price in the cart and at the current price, with totals for both. `GET /api/carts/[id]` returns the stored cart and its lines, and nothing is priced again or saved back.
+- Requires kempo 4.9.7 (the admin lists use kempo-ui tables).

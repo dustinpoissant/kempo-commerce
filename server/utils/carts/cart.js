@@ -6,7 +6,7 @@ import newId, { secret, hashToken } from '../ids.js';
 import { readConfig } from '../config/settings.js';
 import { EVENTS, guard, notify } from '../hooks.js';
 import lineKey from './lineKey.js';
-import { checkLine, loadProducts, readCurrency } from './catalog.js';
+import { checkLine, loadProducts, readCurrency, priceOf } from './catalog.js';
 import { getProductTypes } from 'kempo-products/sdk';
 import { collectAdjustments, computeTotals } from '../totals.js';
 
@@ -365,5 +365,19 @@ export const listCarts = async ({ status = 'open', limit = 50, offset = 0 } = {}
     return [null, { items: carts.map(cart => ({ ...cart, token: undefined, lines: lines.filter(line => line.cartId === cart.id) })), total }];
   } catch(error) {
     return [{ code: 500, msg: 'Failed to list the carts' }, null];
+  }
+};
+
+/* One cart as it is stored, with its lines in the order they were added. Nothing is priced again or saved back. */
+export const readCart = async ({ cartId } = {}) => {
+  if(!cartId) return [{ code: 400, msg: 'cartId is required' }, null];
+  try {
+    const [cart] = await db.select().from(kempoCommerceCart).where(eq(kempoCommerceCart.id, cartId));
+    if(!cart) return [{ code: 404, msg: 'Cart not found' }, null];
+    const lines = await db.select().from(kempoCommerceCartLine).where(eq(kempoCommerceCartLine.cartId, cartId)).orderBy(asc(kempoCommerceCartLine.addedAt), asc(kempoCommerceCartLine.id));
+    const current = await Promise.all(lines.map(line => priceOf(line.productId, line.selections)));
+    return [null, { cart: { ...cart, token: undefined }, lines: lines.map((line, index) => ({ ...line, currentUnitPrice: current[index][0] ? null : current[index][1].unit })) }];
+  } catch(error) {
+    return [{ code: 500, msg: 'Failed to read the cart' }, null];
   }
 };

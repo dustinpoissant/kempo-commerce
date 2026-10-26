@@ -101,6 +101,7 @@ export const previewRefund = options => request('/refunds/preview', send('POST',
 export const refundOrder = (id, options) => request(`/orders/${encodeURIComponent(id)}/refund`, send('POST', options));
 export const finishRefund = refundId => request(`/refunds/${encodeURIComponent(refundId)}/finish`, send('POST'));
 export const listCarts = (params = {}) => request(`/carts${query(params)}`);
+export const getAdminCart = id => request(`/carts/${encodeURIComponent(id)}`);
 export const getSummary = () => request('/summary');
 export const getSettings = () => request('/settings');
 export const saveSettings = values => request('/settings', send('PUT', values));
