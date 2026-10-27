@@ -1,23 +1,22 @@
 import ShadowComponent from '/kempo-ui/components/ShadowComponent.js';
 import { html, nothing } from '/kempo-ui/lit-all.min.js';
 import '/kempo-ui/components/Spinner.js';
-import '/kempo-ui/components/Tabs.js';
 import '/kempo-ui/components/Toggle.js';
 import { getSettings, saveSettings } from '/commerce/sdk.js';
 
 /*
-  The commerce settings, served at /admin/extension/kempo-commerce/components/Settings.js: a tab for each group,
-  each setting with what it does as a hint inside its label. The page slots the Emails tab's content in as `emails`. The server checks every value and says what is
-  wrong with one; the same values also appear on kempo's own settings screen.
+  One group of the commerce settings, served at /admin/extension/kempo-commerce/components/Settings.js. The page puts one of these in
+  each settings tab (`section="carts"`, say), so the tabs are the page's own. Each tab saves its own settings with its own button; a
+  setting shows what it does as a hint inside its label. The server checks every value and says what is wrong with one.
 */
 
-const SECTIONS = [
-  { id: 'store', tab: 'Store', title: 'Your store', names: ['site_url', 'guest_checkout', 'allow_account_creation', 'refund_policy', 'restock_on_refund', 'price_floor_notice'] },
-  { id: 'carts', tab: 'Carts', title: 'Carts', names: ['max_lines_per_cart', 'max_quantity_per_line', 'cart_expiry_days', 'cart_purge_days'] },
-  { id: 'orders', tab: 'Orders', title: 'Orders', names: ['pending_expiry_minutes', 'order_number_prefix', 'order_number_padding', 'order_number_start', 'order_number_random'] },
-  { id: 'mini-cart', tab: 'Mini-cart', title: 'The mini-cart', names: ['mini_cart_inject', 'mini_cart_side', 'mini_cart_open_on_add', 'add_to_cart_toast_action', 'mini_cart_hide_on_cart_pages'] },
-  { id: 'protection', tab: 'Protection', title: 'Protection against card testing', names: ['purchase_limit_per_user', 'purchase_limit_per_ip', 'purchase_limit_global', 'failed_payment_limit', 'failed_payment_cooldown_minutes', 'trust_proxy'] },
-];
+export const SECTIONS = {
+  store: { title: 'Your store', names: ['site_url', 'guest_checkout', 'allow_account_creation', 'refund_policy', 'restock_on_refund', 'price_floor_notice'] },
+  carts: { title: 'Carts', names: ['max_lines_per_cart', 'max_quantity_per_line', 'cart_expiry_days', 'cart_purge_days'] },
+  orders: { title: 'Orders', names: ['pending_expiry_minutes', 'order_number_prefix', 'order_number_padding', 'order_number_start', 'order_number_random'] },
+  'mini-cart': { title: 'The mini-cart', names: ['mini_cart_inject', 'mini_cart_side', 'mini_cart_open_on_add', 'add_to_cart_toast_action', 'mini_cart_hide_on_cart_pages'] },
+  protection: { title: 'Protection against card testing', names: ['purchase_limit_per_user', 'purchase_limit_per_ip', 'purchase_limit_global', 'failed_payment_limit', 'failed_payment_cooldown_minutes', 'trust_proxy'] },
+};
 
 const TITLES = {
   site_url: 'Site address', guest_checkout: 'Guest checkout', allow_account_creation: 'Offer to create an account', refund_policy: 'Refund policy', price_floor_notice: 'Minimum price notice',
@@ -28,8 +27,9 @@ const TITLES = {
   purchase_limit_global: 'Checkouts per hour, whole site', failed_payment_limit: 'Declines before a cool-down', failed_payment_cooldown_minutes: 'Cool-down minutes', trust_proxy: 'Trust the proxy address',
 };
 
-export default class AdminSettings extends ShadowComponent {
+export default class AdminSettingsSection extends ShadowComponent {
   static properties = {
+    section: { type: String, reflect: true },
     settings: { state: true },
     values: { state: true },
     error: { state: true },
@@ -39,6 +39,7 @@ export default class AdminSettings extends ShadowComponent {
 
   constructor(){
     super();
+    this.section = 'store';
     this.settings = null;
     this.values = {};
     this.error = '';
@@ -48,12 +49,16 @@ export default class AdminSettings extends ShadowComponent {
 
   connectedCallback(){
     super.connectedCallback();
-const pane = this.closest('k-tab-content');
+    const pane = this.closest('k-tab-content');
     // Loads when its tab is first opened, so a tab nobody opens makes no requests.
     if(!pane || pane.active) this.load();
     else this.closest('k-tabs')?.addEventListener('tabfirstshown', ({ detail }) => {
       if(detail.tab === pane.name) this.load();
     });
+  }
+
+  get names(){
+    return SECTIONS[this.section]?.names ?? [];
   }
 
   load = async () => {
@@ -71,11 +76,13 @@ const pane = this.closest('k-tab-content');
     this.saved = false;
   };
 
+  /* Saves only this tab's settings. */
   save = async event => {
     event.preventDefault();
     this.busy = true;
     this.error = '';
-    const [error] = await saveSettings(this.values);
+    const updates = Object.fromEntries(this.names.filter(name => this.settings[name]).map(name => [name, this.values[name]]));
+    const [error] = await saveSettings(updates);
     this.busy = false;
     if(error){
       this.error = error.msg;
@@ -104,23 +111,16 @@ const pane = this.closest('k-tab-content');
 
     return html`
       <form @submit=${this.save}>
-        <k-tabs>
-          ${SECTIONS.map(section => html`<k-tab for=${section.id}>${section.tab}</k-tab>`)}
-          <k-tab for="emails">Emails</k-tab>
-          ${SECTIONS.map(section => html`<k-tab-content name=${section.id} class="pt">
-            <h2 class="h4">${section.title}</h2>
-            ${section.names.map(name => this.renderField(name))}
-            <div aria-live="polite">
-              ${this.error ? html`<p class="tc-danger" role="alert">${this.error}</p>` : nothing}
-              ${this.saved ? html`<p class="tc-success">Saved.</p>` : nothing}
-            </div>
-            <button class="primary" ?disabled=${this.busy}>${this.busy ? 'Saving…' : 'Save settings'}</button>
-          </k-tab-content>`)}
-          <k-tab-content name="emails" class="pt"><slot name="emails"></slot></k-tab-content>
-        </k-tabs>
+        <h2 class="h4">${SECTIONS[this.section]?.title}</h2>
+        ${this.names.map(name => this.renderField(name))}
+        <div aria-live="polite">
+          ${this.error ? html`<p class="tc-danger" role="alert">${this.error}</p>` : nothing}
+          ${this.saved ? html`<p class="tc-success">Saved.</p>` : nothing}
+        </div>
+        <button class="primary" ?disabled=${this.busy}>${this.busy ? 'Saving…' : 'Save settings'}</button>
       </form>
     `;
   }
 }
 
-customElements.define('k-commerce-admin-settings', AdminSettings);
+customElements.define('k-commerce-admin-settings-section', AdminSettingsSection);

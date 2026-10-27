@@ -4,13 +4,44 @@ locked: true
 <page title="Order - Admin">
 <content>
   <script type="module" src="/kempo-ui/components/Icon.js"></script>
+  <script type="module" src="/kempo-ui/components/Tabs.js"></script>
   <script type="module" src="/admin/extension/kempo-commerce/components/OrderDetail.js"></script>
+  <script type="module" src="/admin/extension/kempo-commerce/components/OrderItems.js"></script>
+  <script type="module" src="/admin/extension/kempo-commerce/components/OrderPayment.js"></script>
+  <script type="module" src="/admin/extension/kempo-commerce/components/OrderCustomer.js"></script>
+  <script type="module" src="/admin/extension/kempo-commerce/components/OrderHistory.js"></script>
 
-  <k-commerce-admin-order>
-    <location name="commerce-admin-order-tabs" />
-    <div slot="panels"><location name="commerce-admin-order-panels" /></div>
-    <div slot="actions"><location name="commerce-admin-order-actions" /></div>
-  </k-commerce-admin-order>
+  <div id="order">
+    <k-commerce-admin-order>
+      <div slot="actions"><location name="commerce-admin-order-actions" /></div>
+    </k-commerce-admin-order>
+
+    <k-tabs active="items" hash-routing class="mb">
+      <k-tab for="items">Items</k-tab>
+      <k-tab for="payment">Payment</k-tab>
+      <k-tab for="customer">Customer</k-tab>
+      <k-tab for="history">History</k-tab>
+
+      <k-tab-content name="items" class="pt">
+        <k-commerce-order-items></k-commerce-order-items>
+        <location name="commerce-admin-order-panels" />
+      </k-tab-content>
+
+      <k-tab-content name="payment" class="pt">
+        <k-commerce-order-payment></k-commerce-order-payment>
+      </k-tab-content>
+
+      <k-tab-content name="customer" class="pt">
+        <k-commerce-order-customer></k-commerce-order-customer>
+      </k-tab-content>
+
+      <k-tab-content name="history" class="pt">
+        <k-commerce-order-history></k-commerce-order-history>
+      </k-tab-content>
+
+      <location name="commerce-admin-order-tabs" />
+    </k-tabs>
+  </div>
   <location name="commerce-admin-order-scripts" />
 </content>
 </page>

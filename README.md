@@ -231,13 +231,13 @@ Nothing here stores a carrier, a tracking number or a rate.
 
 ### Tabs on the admin order page
 
-The admin order page is a set of tabs: **Items**, **Payment**, the tabs other extensions add (kempo-shipping's **Shipping** comes next), **Customer** (billing details, and a form to email the customer) and **History**. An extension adds a tab by putting a `k-commerce-order-tab` in the `commerce-admin-order-tabs` location (and loading its component from `commerce-admin-order-scripts`, outside any template):
+The admin order page is a set of tabs: **Items**, **Payment**, the tabs other extensions add (kempo-shipping's **Shipping** comes next), **Customer** (billing details, and a form to email the customer) and **History**. An extension adds a tab by putting a plain `k-tab` and `k-tab-content` in the `commerce-admin-order-tabs` location, which sits inside the page's tabs (and loads its component from `commerce-admin-order-scripts`, outside any tabs). Tabs come after History, in the order the extensions load.
 
 ```html
-<k-commerce-order-tab name="shipping" label="Shipping" position="300"><k-shipping-order></k-shipping-order></k-commerce-order-tab>
+<k-tab for="shipping">Shipping</k-tab><k-tab-content name="shipping" class="pt"><k-shipping-order></k-shipping-order></k-tab-content>
 ```
 
-`position` sorts the tabs (Items 100, Payment 200, Customer 400, extensions 600 unless set, History 1000). The tab's component loads the order itself with `getOrder` from the `id` in the page address.
+Each part of the page (the header, each tab) reloads when an action changes the order: the action dispatches `orderChanged`, which bubbles to the page's `#order` wrapper.
 
 ## Discounts
 

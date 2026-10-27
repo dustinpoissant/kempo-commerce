@@ -1,6 +1,5 @@
 import ShadowComponent from '/kempo-ui/components/ShadowComponent.js';
 import { html } from '/kempo-ui/lit-all.min.js';
-import '/kempo-ui/components/Tabs.js';
 import '/kempo-ui/components/Table.js';
 import '/kempo-ui/components/controls/TcOpen.js';
 import '/kempo-ui/components/controls/TcFirstPage.js';
@@ -13,11 +12,10 @@ import { listCarts } from '/commerce/sdk.js';
 import { formatDate } from '/commerce/utils/format.js';
 
 /*
-  Open and abandoned carts, read-only, served at /admin/extension/kempo-commerce/components/Carts.js.
-  Each status is a tab, and the tab is in the address, so a reload or the back button keeps it. A row opens the
-  cart's own page. Abandoned carts are what a later "abandoned cart" extension would email about.
+  The carts with one status, read-only, served at /admin/extension/kempo-commerce/components/Carts.js.
+  The page puts one of these in each status's tab (`status="open"` or `status="abandoned"`), so the
+  tabs are the page's own. A row opens the cart's own page.
 */
-const STATUSES = ['open', 'abandoned'];
 const CART = '/admin/extension/kempo-commerce/cart/';
 
 const fields = [
@@ -31,52 +29,59 @@ const fields = [
 
 export default class AdminCarts extends ShadowComponent {
   static properties = {
+    status: { type: String, reflect: true },
     error: { state: true },
   };
 
   constructor(){
     super();
+    this.status = 'open';
     this.error = '';
-    this.loaded = new Set();
+    this.loaded = false;
   }
 
+  /*
+    Lifecycle
+  */
   connectedCallback(){
     super.connectedCallback();
-    this.start();
+    const pane = this.closest('k-tab-content');
+    // Loads when its tab is first shown, so a tab nobody opens makes no requests.
+    if(!pane || pane.active) this.load();
+    else this.closest('k-tabs')?.addEventListener('tabfirstshown', ({ detail }) => {
+      if(detail.tab === pane.name) this.load();
+    });
   }
 
-  /* Loads the tab the address opened on, and each tab the first time it is shown. */
-  start = async () => {
-    await this.updateComplete;
-    const $tabs = this.renderRoot.querySelector('k-tabs');
-    $tabs.addEventListener('tabfirstshown', ({ detail }) => this.load(detail.tab));
-    await $tabs.updateComplete;
-    this.load($tabs.active);
-  };
-
-  load = async status => {
-    if(this.loaded.has(status)) return;
-    this.loaded.add(status);
-    const $table = this.renderRoot.querySelector(`#${status}Table`);
-    const [error, data] = await listCarts({ status, limit: 25, offset: 0 });
+  /*
+    Data
+  */
+  load = async () => {
+    if(this.loaded) return;
+    this.loaded = true;
+    const $table = this.renderRoot.querySelector('k-table');
+    const [error, data] = await listCarts({ status: this.status, limit: 25, offset: 0 });
     if(error){
       this.error = error.msg;
       return;
     }
-    this.error = '';
     $table.setData({
       records: data.items.map(cart => ({ ...cart, _url: `${CART}${encodeURIComponent(cart.id)}` })),
       fields,
     });
     $table.setupFetchRecords(data.total, async (start, count) => {
-      const [fetchError, page] = await listCarts({ status, limit: count, offset: start });
+      const [fetchError, page] = await listCarts({ status: this.status, limit: count, offset: start });
       return fetchError ? [] : page.items.map(cart => ({ ...cart, _url: `${CART}${encodeURIComponent(cart.id)}` }));
     });
   };
 
-  renderTable(status){
+  /*
+    View
+  */
+  render(){
     return html`
-      <k-table id="${status}Table" open-on-click enable-pages page-size="25" page-size-options="[10,25,50]" placeholder="No ${status} carts.">
+      ${this.error ? html`<p class="tc-danger" role="alert">${this.error}</p>` : ''}
+      <k-table open-on-click enable-pages page-size="25" page-size-options="[10,25,50]" placeholder="No ${this.status} carts.">
         <kc-tc-open slot="before"></kc-tc-open>
         <div class="d-f full" style="align-items: center;">
           <div>
@@ -91,17 +96,6 @@ export default class AdminCarts extends ShadowComponent {
           <div><kc-tc-page-size></kc-tc-page-size></div>
         </div>
       </k-table>
-    `;
-  }
-
-  render(){
-    return html`
-      ${this.error ? html`<p class="tc-danger" role="alert">${this.error}</p>` : ''}
-      <k-tabs id="cartTabs" hash-routing active="open">
-        <k-tab for="open">Open</k-tab>
-        <k-tab for="abandoned">Abandoned</k-tab>
-        ${STATUSES.map(status => html`<k-tab-content name="${status}">${this.renderTable(status)}</k-tab-content>`)}
-      </k-tabs>
     `;
   }
 }

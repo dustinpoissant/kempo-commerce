@@ -4,17 +4,33 @@ locked: true
 <page title="Carts - Admin">
 <content>
   <script type="module" src="/kempo-ui/components/Icon.js"></script>
+  <script type="module" src="/kempo-ui/components/Tabs.js"></script>
   <script type="module" src="/admin/extension/kempo-commerce/components/Carts.js"></script>
 
   <div class="d-f mb" style="align-items: center; gap: var(--spacer);">
     <a href="/admin/extension/kempo-commerce/" class="btn"><k-icon name="arrow" direction="left"></k-icon> Orders</a>
     <h1 class="flex mb0">Carts</h1>
   </div>
-  <p class="tc-muted">
-    Open carts are what people are shopping with right now. Abandoned ones were left alone for longer than
-    the cart expiry setting. Nothing here can be changed.
-  </p>
 
-  <k-commerce-admin-carts></k-commerce-admin-carts>
+  <k-tabs active="open" hash-routing>
+    <k-tab for="open">Open</k-tab>
+    <k-tab for="abandoned">Abandoned</k-tab>
+
+    <k-tab-content name="open">
+      <p class="tc-muted">
+        Open carts are what people are shopping with right now. Nothing here can be changed.
+      </p>
+      <k-commerce-admin-carts status="open"></k-commerce-admin-carts>
+    </k-tab-content>
+
+    <k-tab-content name="abandoned">
+      <p class="tc-muted">
+        Abandoned carts were left alone for longer than the cart expiry setting. Nothing here can be changed.
+      </p>
+      <k-commerce-admin-carts status="abandoned"></k-commerce-admin-carts>
+    </k-tab-content>
+
+    <location name="commerce-admin-carts-tabs" />
+  </k-tabs>
 </content>
 </page>

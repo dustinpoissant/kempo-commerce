@@ -4,6 +4,7 @@ locked: true
 <page title="Commerce Settings - Admin">
 <content>
   <script type="module" src="/kempo-ui/components/Icon.js"></script>
+  <script type="module" src="/kempo-ui/components/Tabs.js"></script>
   <script type="module" src="/admin/extension/kempo-commerce/components/Settings.js"></script>
   <script type="module" src="/admin/components/EmailTemplates.js"></script>
 
@@ -12,11 +13,40 @@ locked: true
     <h1 class="flex mb0">Commerce Settings</h1>
   </div>
 
-  <k-commerce-admin-settings>
-    <div slot="emails">
+  <k-tabs active="store" hash-routing>
+    <k-tab for="store">Store</k-tab>
+    <k-tab for="carts">Carts</k-tab>
+    <k-tab for="orders">Orders</k-tab>
+    <k-tab for="mini-cart">Mini-cart</k-tab>
+    <k-tab for="protection">Protection</k-tab>
+    <k-tab for="emails">Emails</k-tab>
+
+    <k-tab-content name="store" class="pt">
+      <k-commerce-admin-settings-section section="store"></k-commerce-admin-settings-section>
+    </k-tab-content>
+
+    <k-tab-content name="carts" class="pt">
+      <k-commerce-admin-settings-section section="carts"></k-commerce-admin-settings-section>
+    </k-tab-content>
+
+    <k-tab-content name="orders" class="pt">
+      <k-commerce-admin-settings-section section="orders"></k-commerce-admin-settings-section>
+    </k-tab-content>
+
+    <k-tab-content name="mini-cart" class="pt">
+      <k-commerce-admin-settings-section section="mini-cart"></k-commerce-admin-settings-section>
+    </k-tab-content>
+
+    <k-tab-content name="protection" class="pt">
+      <k-commerce-admin-settings-section section="protection"></k-commerce-admin-settings-section>
+    </k-tab-content>
+
+    <k-tab-content name="emails" class="pt">
       <p class="tc-muted mb">The emails the shop sends, and the packing slip. Edit one to reword it; the changes are used from the next email. They use kempo-css classes and the site's email layout.</p>
       <k-email-templates owner="kempo-commerce" preview-url="/commerce/api/emails/preview"></k-email-templates>
-    </div>
-  </k-commerce-admin-settings>
+    </k-tab-content>
+
+    <location name="commerce-admin-settings-tabs" />
+  </k-tabs>
 </content>
 </page>

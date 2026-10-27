@@ -4,6 +4,14 @@ All notable changes to `kempo-commerce` are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **The order page's tabs are on the page** (Items, Payment, Customer, History), each a component of its own that reloads when the order changes (`orderChanged`, which bubbles to the page's `#order` wrapper). The page has a `commerce-admin-order-tabs` location inside its tabs, where extensions add tabs as `k-tab` and `k-tab-content`. This replaces the `k-commerce-order-tab` registry and its `position` ordering: an extension's tab now comes after History. kempo-shipping's Shipping tab uses the location this way.
+- **Commerce Settings' tabs are on the page** (Store, Carts, Orders, Mini-cart, Protection, Emails), each section with its own Save button. Each section is a `k-commerce-admin-settings-section` with a `section` attribute, and saves only its own settings.
+- **Carts' Open and Abandoned tabs are on the page** (`/admin/extension/kempo-commerce/carts/#open`, `#abandoned`), with hash routing and a `commerce-admin-carts-tabs` location, instead of inside the carts component. The component now shows one status, given as its `status` attribute.
+
+- **Commerce Settings tabs have hash routing**, so each tab has its own address.
+
 ### Added (random order numbers)
 
 - **Random order numbers:** the new `order_number_random` setting (a toggle on the Orders tab of Commerce Settings) gives each new order a random 8-digit number, drawn with a cryptographic generator and checked against the orders already placed, so the numbers neither run in order nor reveal how many orders the shop has had. Orders were already unreachable without the owner's session or the order's key; this stops the number being a guess or a count. Settings that are on or off are toggles now.
