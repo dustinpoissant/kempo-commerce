@@ -1,5 +1,16 @@
 <!--
 	owner: kempo-commerce
+	variables:
+		name: The customer's name. Empty when there is none.
+		orderNumber: The order's number.
+		orderLink: The link to the order.
+		lines: Each item, with name, quantity and total.
+		subtotal: The items' total before fees and tax.
+		feeTotal: The total of fees.
+		taxTotal: The total of tax.
+		total: The order's total.
+		hasFees: True when the order has fees.
+		hasTax: True when the order has tax.
 -->
 <page template="email" title="Your order was refunded">
 <content>

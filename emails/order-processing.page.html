@@ -1,5 +1,18 @@
 <!--
 	owner: kempo-commerce
+	variables:
+		name: The customer's name. Empty when there is none.
+		orderNumber: The order's number.
+		orderLink: The link to the order.
+		lines: Each item, with name, quantity and total.
+		subtotal: The items' total before fees and tax.
+		feeTotal: The total of fees.
+		taxTotal: The total of tax.
+		total: The order's total.
+		refundPolicy: The store's refund policy, if it has one.
+		hasFees: True when the order has fees.
+		hasTax: True when the order has tax.
+		hasRefundPolicy: True when the store has a refund policy.
 -->
 <page template="email" title="Thank you for your order">
 <content>

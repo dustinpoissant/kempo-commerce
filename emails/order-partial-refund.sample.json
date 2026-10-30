@@ -1,0 +1,7 @@
+{
+  "name": "Ada",
+  "orderNumber": "#1042",
+  "orderLink": "https://shop.example.com/account/orders/1042",
+  "refundAmount": "$5.00",
+  "refundReason": "A water bottle arrived damaged."
+}

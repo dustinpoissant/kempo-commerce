@@ -1,0 +1,27 @@
+{
+  "siteName": "Example Shop",
+  "orderNumber": "#1042",
+  "placedDate": "Oct 29, 2026",
+  "shipTo": [
+    "Ada Lovelace",
+    "12 Analytical Way",
+    "London EC1A 1AA",
+    "United Kingdom"
+  ],
+  "hasShipTo": true,
+  "packItems": [
+    {
+      "name": "Bike helmet",
+      "options": "Size M",
+      "hasOptions": true,
+      "quantity": 1
+    },
+    {
+      "name": "Water bottle",
+      "options": "",
+      "hasOptions": false,
+      "quantity": 2
+    }
+  ],
+  "itemCount": 3
+}

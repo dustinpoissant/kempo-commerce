@@ -1,0 +1,26 @@
+{
+  "name": "Ada",
+  "orderNumber": "#1042",
+  "orderLink": "https://shop.example.com/account/orders/1042",
+  "siteName": "Example Shop",
+  "lines": [
+    {
+      "name": "Bike helmet",
+      "quantity": 1,
+      "total": "$49.00"
+    },
+    {
+      "name": "Water bottle",
+      "quantity": 2,
+      "total": "$24.00"
+    }
+  ],
+  "subtotal": "$73.00",
+  "feeTotal": "$2.50",
+  "taxTotal": "$6.21",
+  "total": "$81.71",
+  "hasFees": true,
+  "hasTax": true,
+  "refundPolicy": "Returns are accepted within 30 days.",
+  "hasRefundPolicy": true
+}
