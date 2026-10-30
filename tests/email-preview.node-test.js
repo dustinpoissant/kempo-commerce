@@ -19,7 +19,7 @@ export const beforeAll = async () => {
 
 export default {
   'every template previews with a made-up order, with nothing left unfilled': async ({ pass, fail }) => {
-    const names = (await readdir(path.join(root, 'emails'))).map(file => file.replace('.page.html', ''));
+    const names = (await readdir(path.join(root, 'emails'))).filter(file => file.endsWith('.page.html')).map(file => file.replace('.page.html', ''));
     for(const name of names){
       const [error, html] = await previewEmail({ template: `kempo-commerce/${name}` });
       if(error) return fail(`${name}: ${error.msg}`);

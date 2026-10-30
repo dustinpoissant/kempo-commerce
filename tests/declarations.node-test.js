@@ -148,7 +148,7 @@ export default {
   },
 
   'every email template is used, and every one that is sent exists': async ({ pass, fail }) => {
-    const templates = (await readdir(path.join(root, 'emails'))).map(name => name.replace('.page.html', ''));
+    const templates = (await readdir(path.join(root, 'emails'))).filter(file => file.endsWith('.page.html')).map(name => name.replace('.page.html', ''));
     const used = new Set();
     for(const [file, text] of everything){
       for(const match of text.matchAll(/sendOrderEmail\([^,]+, '([a-z-]+)'/g)) used.add(match[1]);
