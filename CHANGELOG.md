@@ -6,6 +6,9 @@ All notable changes to `kempo-commerce` are documented in this file.
 
 ### Changed
 
+- The `kempo-ui` peer dependency is now `>=1.0.0`.
+- The `kempo` peer dependency is now `>=4.10.2`.
+
 - **The order page's tabs are on the page** (Items, Payment, Customer, History), each a component of its own that reloads when the order changes (`orderChanged`, which bubbles to the page's `#order` wrapper). The page has a `commerce-admin-order-tabs` location inside its tabs, where extensions add tabs as `k-tab` and `k-tab-content`. This replaces the `k-commerce-order-tab` registry and its `position` ordering: an extension's tab now comes after History. kempo-shipping's Shipping tab uses the location this way.
 - **Commerce Settings' tabs are on the page** (Store, Carts, Orders, Mini-cart, Protection, Emails), each section with its own Save button. Each section is a `k-commerce-admin-settings-section` with a `section` attribute, and saves only its own settings.
 - **Carts' Open and Abandoned tabs are on the page** (`/admin/extension/kempo-commerce/carts/#open`, `#abandoned`), with hash routing and a `commerce-admin-carts-tabs` location, instead of inside the carts component. The component now shows one status, given as its `status` attribute.
