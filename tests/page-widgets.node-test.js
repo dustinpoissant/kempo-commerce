@@ -8,14 +8,14 @@ import iconSource from '../public/utils/iconSource.js';
 /*
   The two page widgets the page builder offers. kempo's own registry code cleans each declaration (so a
   declaration it would refuse fails here and not in somebody's editor), and kempo-ui's page renderer takes a page
-  through each widget. The kempo-ui modules are loaded from kempo's own copy, so they are the ones kempo's registry
+  through each widget. The kempo-ui modules are loaded from the installed kempo-ui, so they are the ones kempo's registry
   adds the widgets to.
 */
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const load = async file => import(pathToFileURL(file).href);
 const kempo = relative => load(path.join(root, 'node_modules', 'kempo', relative));
-const ui = relative => load(path.join(root, 'node_modules', 'kempo', 'node_modules', 'kempo-ui', 'src', relative));
+const ui = relative => load(path.join(root, 'node_modules', 'kempo-ui', 'src', relative));
 
 const config = JSON.parse(await readFile(path.join(root, 'kempo-config.json'), 'utf8'));
 const { normalizeExtensionWidget } = await kempo('server/utils/sitebuilder/registry.js');

@@ -41,7 +41,7 @@
     "kempo": ">=4.11.0",
     "kempo-credits": ">=0.3.0",
     "kempo-payments": ">=0.4.0",
-    "kempo-products": ">=0.3.0",
+    "kempo-products": ">=0.4.0",
     "kempo-server": ">=3.3.0",
     "kempo-store-credit": ">=0.1.0",
     "kempo-tax": ">=0.3.0",

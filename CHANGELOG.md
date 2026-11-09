@@ -6,7 +6,7 @@ All notable changes to `kempo-commerce` are documented in this file.
 
 ## [0.2.0] - 2026-11-09
 
-Requires kempo 4.11.0 or later.
+Requires kempo 4.11.0 or later, and kempo-products 0.4.0 or later (the cart and checkout take its prices and pictures).
 
 ### Added (cart, checkout and orders in the page builder)
 
