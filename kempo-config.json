@@ -3,6 +3,11 @@
   "git": "https://github.com/dustinpoissant/kempo-commerce",
   "public-scope": "commerce",
   "schema": "./server/db/schema.js",
+  "suggestedPeers": [
+    { "name": "kempo-tax", "reason": "Sales tax worked out by Stripe Tax at checkout" },
+    { "name": "kempo-store-credit", "reason": "A money balance for each customer, in the store's currency" },
+    { "name": "kempo-credits", "reason": "Credits: granted when a customer buys a credits product" }
+  ],
   "dependencies": [
     "kempo-products",
     "kempo-payments"
@@ -33,6 +38,221 @@
       "minHeight": 1,
       "permission": "commerce:orders:view",
       "priority": 80
+    }
+  ],
+  "page_widgets": [
+    {
+      "key": "cart-button",
+      "title": "Cart button",
+      "description": "The cart icon with a count of what is in it. Opens the mini-cart, or goes to the cart page.",
+      "iconSrc": "/commerce/icons/shopping_cart.svg",
+      "category": "products",
+      "category_title": "Products",
+      "keywords": ["cart", "basket", "checkout", "shop"],
+      "tag": "k-commerce-cart-button-widget",
+      "page_component": "/commerce/components/CartButtonWidget.js",
+      "display": "",
+      "attributes": [
+        { "name": "text", "type": "string", "label": "Button text", "hint": "Shown next to the icon. Leave empty for the icon alone.", "default": "" },
+        { "name": "icon", "type": "icon", "label": "Icon", "hint": "Any icon the site has. Empty for no icon.", "default": "src:/commerce/icons/shopping_cart.svg" },
+        { "name": "counter", "type": "boolean", "format": "text", "label": "Show the count", "hint": "The number of items in the cart, shown on the button.", "default": true },
+        { "name": "inline", "type": "boolean", "format": "text", "label": "Inline", "hint": "Sits on the line with the content around it, instead of on a line of its own.", "default": false }
+      ]
+    },
+    {
+      "key": "add-to-cart",
+      "title": "Add to cart",
+      "description": "A quantity and an Add to cart button for one product.",
+      "iconSrc": "/commerce/icons/add_shopping_cart.svg",
+      "category": "products",
+      "category_title": "Products",
+      "keywords": ["buy", "product", "shop", "purchase"],
+      "tag": "k-commerce-add-to-cart-widget",
+      "page_component": "/commerce/components/AddToCartWidget.js",
+      "editor_component": "/admin/extension/kempo-commerce/components/sitebuilder/AddToCartWidgetEditor.js",
+      "editor_tag": "k-commerce-add-to-cart-editor",
+      "settings_component": "/admin/extension/kempo-commerce/components/sitebuilder/AddToCartWidgetSettings.js",
+      "settings_tag": "k-commerce-add-to-cart-settings",
+      "hide_styles": ["background", "textColour"],
+      "attributes": [
+        { "name": "product-id", "type": "id", "label": "Product", "hint": "The product this button adds to the cart. Products are made under Products in the admin.", "default": "" },
+        { "name": "label", "type": "string", "label": "Button text", "default": "Add to cart" },
+        { "name": "icon", "type": "icon", "label": "Icon", "hint": "Any icon the site has. Empty for no icon.", "default": "src:/commerce/icons/add_shopping_cart.svg" },
+        { "name": "variant", "type": "select", "label": "Style", "default": "primary", "options": [
+          { "value": "default", "label": "Default" },
+          { "value": "primary", "label": "Primary" },
+          { "value": "secondary", "label": "Secondary" },
+          { "value": "success", "label": "Success" },
+          { "value": "warning", "label": "Warning" },
+          { "value": "danger", "label": "Danger" }
+        ] },
+        { "name": "full", "type": "boolean", "label": "Full width", "hint": "The button fills the width of its place, instead of being as wide as its text.", "default": false },
+        { "name": "selections", "type": "string", "label": "Options", "hint": "The option choices this button adds, chosen in the settings.", "default": "" },
+        { "name": "detect-parent", "type": "boolean", "label": "Detect the parent product", "hint": "Add the product, and the options chosen, of the Parent Product or Product widget this button is placed in.", "default": false },
+        { "name": "inline", "type": "boolean", "format": "text", "label": "Inline", "hint": "Sits on the line with the content around it, instead of on a line of its own.", "default": false }
+      ]
+    },
+    {
+      "key": "cart",
+      "title": "Cart",
+      "description": "The cart page: the lines, the totals and the way on to checkout. Put the cart pieces inside it to lay it out yourself.",
+      "iconSrc": "/commerce/icons/shopping_cart.svg",
+      "category": "checkout",
+      "category_title": "Cart and checkout",
+      "keywords": ["cart", "basket", "bag", "lines"],
+      "tag": "k-commerce-cart",
+      "page_component": "/commerce/components/Cart.js",
+      "editor_component": "/admin/extension/kempo-commerce/components/sitebuilder/CartEditor.js",
+      "editor_tag": "k-commerce-cart-editor",
+      "slots": [{"name": "default", "label": "Cart pieces"}, {"name": "before", "label": "Above the cart"}, {"name": "after", "label": "Beside the totals"}]
+    },
+    {
+      "key": "cart-notices",
+      "title": "Cart notices",
+      "description": "What changed or went wrong in the cart: a price that moved, a product no longer for sale. Goes inside a Cart.",
+      "iconSrc": "/commerce/icons/shopping_cart.svg",
+      "category": "checkout",
+      "category_title": "Cart and checkout",
+      "keywords": ["cart", "notices", "warnings"],
+      "tag": "k-commerce-cart-notices-widget",
+      "page_component": "/commerce/components/CartParts.js"
+    },
+    {
+      "key": "cart-lines",
+      "title": "Cart items",
+      "description": "The lines of the cart with their pictures, choices, prices and quantities. Goes inside a Cart.",
+      "iconSrc": "/commerce/icons/shopping_cart.svg",
+      "category": "checkout",
+      "category_title": "Cart and checkout",
+      "keywords": ["cart", "items", "lines", "products"],
+      "tag": "k-commerce-cart-lines-widget",
+      "page_component": "/commerce/components/CartParts.js"
+    },
+    {
+      "key": "cart-totals",
+      "title": "Cart totals",
+      "description": "The subtotal, discounts and fees, and the total. Goes inside a Cart.",
+      "iconSrc": "/commerce/icons/shopping_cart.svg",
+      "category": "checkout",
+      "category_title": "Cart and checkout",
+      "keywords": ["cart", "totals", "subtotal", "total"],
+      "tag": "k-commerce-cart-totals-widget",
+      "page_component": "/commerce/components/CartParts.js"
+    },
+    {
+      "key": "cart-actions",
+      "title": "Cart buttons",
+      "description": "Continue shopping, and on to checkout. Goes inside a Cart.",
+      "iconSrc": "/commerce/icons/shopping_cart.svg",
+      "category": "checkout",
+      "category_title": "Cart and checkout",
+      "keywords": ["cart", "buttons", "checkout", "continue"],
+      "tag": "k-commerce-cart-actions-widget",
+      "page_component": "/commerce/components/CartParts.js"
+    },
+    {
+      "key": "checkout",
+      "title": "Checkout",
+      "description": "The checkout page, ready to use. Put the checkout pieces inside it to lay it out yourself.",
+      "iconSrc": "/commerce/icons/shopping_cart_checkout.svg",
+      "category": "checkout",
+      "category_title": "Cart and checkout",
+      "keywords": ["checkout", "pay", "order", "buy"],
+      "tag": "k-commerce-checkout",
+      "page_component": "/commerce/components/Checkout.js",
+      "editor_component": "/admin/extension/kempo-commerce/components/sitebuilder/CheckoutEditor.js",
+      "editor_tag": "k-commerce-checkout-editor",
+      "slots": [{"name": "default", "label": "Checkout pieces"}]
+    },
+    {
+      "key": "checkout-contact",
+      "title": "Checkout contact",
+      "description": "Who the customer is, an account if one is wanted, and the details extensions ask for. Goes inside a Checkout.",
+      "iconSrc": "/commerce/icons/shopping_cart_checkout.svg",
+      "category": "checkout",
+      "category_title": "Cart and checkout",
+      "keywords": ["checkout", "contact", "name", "email", "account"],
+      "tag": "k-commerce-checkout-contact-widget",
+      "page_component": "/commerce/components/CheckoutParts.js"
+    },
+    {
+      "key": "checkout-billing",
+      "title": "Checkout billing address",
+      "description": "The billing address, which sets the tax. Goes inside a Checkout.",
+      "iconSrc": "/commerce/icons/shopping_cart_checkout.svg",
+      "category": "checkout",
+      "category_title": "Cart and checkout",
+      "keywords": ["checkout", "billing", "address", "country"],
+      "tag": "k-commerce-checkout-billing-widget",
+      "page_component": "/commerce/components/CheckoutParts.js"
+    },
+    {
+      "key": "checkout-credits",
+      "title": "Checkout credits",
+      "description": "Store credit and credits the customer can spend, shown only when they have some. Goes inside a Checkout.",
+      "iconSrc": "/commerce/icons/shopping_cart_checkout.svg",
+      "category": "checkout",
+      "category_title": "Cart and checkout",
+      "keywords": ["checkout", "credit", "store credit", "balance"],
+      "tag": "k-commerce-checkout-credits-widget",
+      "page_component": "/commerce/components/CheckoutParts.js"
+    },
+    {
+      "key": "checkout-payment",
+      "title": "Checkout payment",
+      "description": "The card, shown only when something is to be paid by it. Goes inside a Checkout.",
+      "iconSrc": "/commerce/icons/shopping_cart_checkout.svg",
+      "category": "checkout",
+      "category_title": "Cart and checkout",
+      "keywords": ["checkout", "payment", "card", "pay"],
+      "tag": "k-commerce-checkout-payment-widget",
+      "page_component": "/commerce/components/CheckoutParts.js"
+    },
+    {
+      "key": "checkout-sections",
+      "title": "Checkout extra sections",
+      "description": "The sections other extensions add to the checkout, such as a shipping address. Goes inside a Checkout.",
+      "iconSrc": "/commerce/icons/shopping_cart_checkout.svg",
+      "category": "checkout",
+      "category_title": "Cart and checkout",
+      "keywords": ["checkout", "shipping", "extra", "sections"],
+      "tag": "k-commerce-checkout-sections-widget",
+      "page_component": "/commerce/components/CheckoutParts.js"
+    },
+    {
+      "key": "checkout-summary",
+      "title": "Checkout order summary",
+      "description": "The order and its totals, and what extensions put under them. Goes inside a Checkout.",
+      "iconSrc": "/commerce/icons/shopping_cart_checkout.svg",
+      "category": "checkout",
+      "category_title": "Cart and checkout",
+      "keywords": ["checkout", "summary", "totals", "order"],
+      "tag": "k-commerce-checkout-summary-widget",
+      "page_component": "/commerce/components/CheckoutParts.js"
+    },
+    {
+      "key": "checkout-place",
+      "title": "Checkout place order",
+      "description": "The button that places the order, and what is still needed before it can be pressed. Goes inside a Checkout.",
+      "iconSrc": "/commerce/icons/shopping_cart_checkout.svg",
+      "category": "checkout",
+      "category_title": "Cart and checkout",
+      "keywords": ["checkout", "button", "place order", "submit"],
+      "tag": "k-commerce-checkout-place-widget",
+      "page_component": "/commerce/components/CheckoutParts.js"
+    },
+    {
+      "key": "orders",
+      "title": "Order history",
+      "description": "The signed-in customer's orders, newest first, with a link to each.",
+      "iconSrc": "/admin/extension/kempo-commerce/icons/receipt.svg",
+      "category": "checkout",
+      "category_title": "Cart and checkout",
+      "keywords": ["orders", "history", "account", "purchases"],
+      "tag": "k-commerce-orders",
+      "page_component": "/commerce/components/Orders.js",
+      "editor_component": "/admin/extension/kempo-commerce/components/sitebuilder/OrdersEditor.js",
+      "editor_tag": "k-commerce-orders-editor"
     }
   ],
   "hooks": {

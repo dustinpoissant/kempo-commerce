@@ -34,6 +34,21 @@ const TOP_RIGHT = 'border-top: 1px solid var(--c_border); border-top-right-radiu
 
   **Other extensions** add to the page with `registerCheckoutSection` (checkoutSections.js). See that file.
 
+  **A layout of your own.** Put the pieces inside it and it holds the order and draws none of its own layout, so the pieces
+  can be placed anywhere inside it, in columns or rows, in your order (CheckoutParts.js). Without pieces it draws the
+  accordion above.
+
+  ```html
+  <k-commerce-checkout>
+    <k-commerce-checkout-contact-widget></k-commerce-checkout-contact-widget>
+    <k-commerce-checkout-summary-widget></k-commerce-checkout-summary-widget>
+    <k-commerce-checkout-place-widget></k-commerce-checkout-place-widget>
+  </k-commerce-checkout>
+  ```
+
+  A piece finds the checkout with `closest('k-commerce-checkout')` and draws what the checkout's own `render…` methods
+  draw, and draws again on the checkout's `checkout-change` event.
+
   **Light DOM, on purpose.** Stripe's card fields do not mount inside a shadow root (they reserve the
   space and draw nothing), so the payment form, and everything around it, is light DOM.
 
@@ -123,6 +138,7 @@ export default class Checkout extends LightComponent {
     this.settle();
     /* The sections read `checkout.quote` (the shipping choices), so they draw again whenever the page does. */
     for(const { tag } of [...checkoutSections('panel'), ...checkoutSections('summary')]) this.querySelectorAll(tag).forEach($section => $section.requestUpdate?.());
+    this.dispatchEvent(new CustomEvent('checkout-change'));
   }
 
   refreshSections = () => this.requestUpdate();
@@ -270,6 +286,21 @@ export default class Checkout extends LightComponent {
 
   get payForm(){
     return this.querySelector('k-pay-form');
+  }
+
+  /* Whether pieces are placed inside, so the page draws none of its own layout. */
+  get layout(){
+    return [...this.children].some(child => child !== this.lightRoot);
+  }
+
+  /* Whether anything is to be paid by a method that is not the card (store credit, credits), or a card is. */
+  get paymentShown(){
+    return this.needsCard || Boolean(this.quote?.plan?.some(entry => entry.kind !== 'card'));
+  }
+
+  /* Whether the customer has store credit or credits to spend. */
+  get creditsShown(){
+    return Boolean(this.offer('store-credit') || this.offer('credits'));
   }
 
   /*
@@ -456,8 +487,8 @@ export default class Checkout extends LightComponent {
     const panels = [
       { id: 'contact', title: 'Contact', priority: 500, body: this.renderContact() },
       { id: 'billing', title: 'Billing address', priority: 400, body: this.renderBilling() },
-      ...(this.offer('store-credit') || this.offer('credits') ? [{ id: 'credits', title: 'Store credit and credits', priority: 200, body: this.renderCredits() }] : []),
-      ...(this.needsCard || quote.plan.some(entry => entry.kind !== 'card') ? [{ id: 'payment', title: 'Payment', priority: 100, body: this.renderPayment() }] : []),
+      ...(this.creditsShown ? [{ id: 'credits', title: 'Store credit and credits', priority: 200, body: this.renderCredits() }] : []),
+      ...(this.paymentShown ? [{ id: 'payment', title: 'Payment', priority: 100, body: this.renderPayment() }] : []),
       ...checkoutSections('panel').map(({ id, title, priority, tag }) => ({ id, title, priority, tag })),
     ];
     return panels.sort((a, b) => b.priority - a.priority);
@@ -474,7 +505,7 @@ export default class Checkout extends LightComponent {
           <k-accordion-header for-panel=${panel.id}>${panel.title}</k-accordion-header>
           <k-accordion-panel name=${panel.id}>
             <div class="p">
-              ${panel.tag ? staticHtml`<${unsafeStatic(panel.tag)} .checkout=${this}></${unsafeStatic(panel.tag)}>` : panel.body}
+              ${panel.tag ? this.renderSectionBody(panel) : panel.body}
             </div>
           </k-accordion-panel>
         `))}
@@ -628,25 +659,57 @@ export default class Checkout extends LightComponent {
     `;
   }
 
-  renderForm(){
+  /* The element an extension registered for a section, handed the page. */
+  renderSectionBody({ tag }){
+    return staticHtml`<${unsafeStatic(tag)} .checkout=${this}></${unsafeStatic(tag)}>`;
+  }
+
+  /* What went wrong, and what changed in the cart. */
+  renderMessages(){
     const { quote } = this;
+    return html`
+      ${this.error ? html`<p class="tc-danger" role="alert">${this.error}</p>` : nothing}
+      ${quote.cart.notices.map(notice => html`<p class=${notice.blocking ? 'tc-danger' : 'tc-warning'}>${notice.message}</p>`)}
+    `;
+  }
+
+  /* What extensions put under the order summary. */
+  renderSummarySections(){
+    return checkoutSections('summary').map(section => this.renderSectionBody(section));
+  }
+
+  /* The panels extensions added, one after the other with their titles, for a layout that has no accordion. */
+  renderSections(){
+    return checkoutSections('panel').map(section => html`<h2 class="h4">${section.title}</h2>${this.renderSectionBody(section)}`);
+  }
+
+  /*
+    The button that places the order, and why it cannot be pressed yet. In the page's own layout it is the submit button of
+    the form; on its own (`standalone`, in a layout of pieces) it places the order when pressed.
+  */
+  renderPlaceOrder({ standalone = false } = {}){
+    return html`
+      <button type=${standalone ? 'button' : 'submit'} class="primary full" @click=${standalone ? this.place : undefined} ?disabled=${this.busy || this.pricing || this.missing.length > 0 || Boolean(this.blocker)}>
+        ${this.finished ? 'Order placed' : this.busy ? (this.placed ? 'Paying…' : 'Placing your order…') : (this.placed ? 'Try payment again' : 'Place order')}
+      </button>
+      ${this.blocker && !this.busy ? html`<p class="small tc-danger mt" role="alert">${this.blocker}</p>` : nothing}
+      ${this.missing.length && !this.busy ? html`<p class="small tc-muted mt">To place your order, add ${this.missing.join(', ').replace(/, ([^,]*)$/, ' and $1')}.</p>` : nothing}
+    `;
+  }
+
+  renderForm(){
     return html`
       <form class="row" @submit=${this.place} ?inert=${this.finished}>
         <div class="span-12 d-span-7" style="padding-right: var(--spacer);">
-          ${this.error ? html`<p class="tc-danger" role="alert">${this.error}</p>` : nothing}
-          ${quote.cart.notices.map(notice => html`<p class=${notice.blocking ? 'tc-danger' : 'tc-warning'}>${notice.message}</p>`)}
+          ${this.renderMessages()}
 
           ${this.renderPanels()}
         </div>
 
         <div class="span-12 d-span-5">
           ${this.renderSummary()}
-          ${checkoutSections('summary').map(({ tag }) => staticHtml`<${unsafeStatic(tag)} .checkout=${this}></${unsafeStatic(tag)}>`)}
-          <button class="primary full" ?disabled=${this.busy || this.pricing || this.missing.length > 0 || Boolean(this.blocker)}>
-            ${this.finished ? 'Order placed' : this.busy ? (this.placed ? 'Paying…' : 'Placing your order…') : (this.placed ? 'Try payment again' : 'Place order')}
-          </button>
-          ${this.blocker && !this.busy ? html`<p class="small tc-danger mt" role="alert">${this.blocker}</p>` : nothing}
-          ${this.missing.length && !this.busy ? html`<p class="small tc-muted mt">To place your order, add ${this.missing.join(', ').replace(/, ([^,]*)$/, ' and $1')}.</p>` : nothing}
+          ${this.renderSummarySections()}
+          ${this.renderPlaceOrder()}
         </div>
       </form>
     `;
@@ -662,7 +725,7 @@ export default class Checkout extends LightComponent {
         <a class="btn primary" href="/cart/">Back to your cart</a>
       </div>`;
     }
-    return this.renderForm();
+    return this.layout ? nothing : this.renderForm();
   }
 }
 

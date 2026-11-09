@@ -1,14 +1,9 @@
 import ShadowComponent from '/kempo-ui/components/ShadowComponent.js';
-import { html, nothing, live } from '/kempo-ui/lit-all.min.js';
-import '/kempo-ui/components/Icon.js';
+import { html } from '/kempo-ui/lit-all.min.js';
 import '/kempo-ui/components/Spinner.js';
-import '/commerce/components/CartQty.js';
 import { getCart, updateLine, removeLine, announceCartChanged, onCartChanged } from '/commerce/sdk.js';
-import { loadFormat, optionsText, itemNames } from '/commerce/utils/format.js';
-
-/* A table with no header row has no top border or rounded top corners of its own, so its first row draws them. */
-const TOP_LEFT = 'border-top: 1px solid var(--c_border); border-top-left-radius: var(--radius);';
-const TOP_RIGHT = 'border-top: 1px solid var(--c_border); border-top-right-radius: var(--radius);';
+import { loadFormat } from '/commerce/utils/format.js';
+import { renderNotices, renderLines, renderTotals, renderActions } from '/commerce/utils/cartParts.js';
 
 /*
   The cart page's body, served at /commerce/components/Cart.js.
@@ -22,6 +17,20 @@ const TOP_RIGHT = 'border-top: 1px solid var(--c_border); border-top-right-radiu
   changed, less quantity than asked for, a product no longer for sale), the fees an extension added, the
   subtotal, and the way on to checkout. Everything shown is what the server answered after each change.
   Slots `before` and `after` are for other extensions (a coupon box, upsells).
+
+  **A layout of your own.** Put the pieces inside it and it draws only them, in your order, instead of its own layout:
+
+  ```html
+  <k-commerce-cart>
+    <k-commerce-cart-lines-widget></k-commerce-cart-lines-widget>
+    <k-commerce-cart-totals-widget></k-commerce-cart-totals-widget>
+    <k-commerce-cart-actions-widget></k-commerce-cart-actions-widget>
+  </k-commerce-cart>
+  ```
+
+  A piece finds the cart with `closest('k-commerce-cart')` and reads `cart`, `money(minor)`, `config`, `busy`, `error`
+  and `change(line, quantity)` from it, and draws again on its `cart-change` event. An empty cart draws the empty cart
+  message and none of the pieces.
 */
 export default class Cart extends ShadowComponent {
   static properties = {
@@ -39,6 +48,7 @@ export default class Cart extends ShadowComponent {
     this.error = '';
     this.money = minor => String(minor);
     this.stopListening = null;
+    this.watcher = new MutationObserver(() => this.requestUpdate());
   }
 
   /*
@@ -47,13 +57,20 @@ export default class Cart extends ShadowComponent {
 
   connectedCallback(){
     super.connectedCallback();
-    this.stopListening = onCartChanged(cart => cart ? this.cart = cart : this.refresh());
+    this.stopListening = onCartChanged(cart => this.cartChanged(cart));
+    this.watcher.observe(this, { childList: true });
     this.start();
   }
 
   disconnectedCallback(){
     super.disconnectedCallback();
     this.stopListening?.();
+    this.watcher.disconnect();
+  }
+
+  updated(changed){
+    super.updated?.(changed);
+    this.dispatchEvent(new CustomEvent('cart-change'));
   }
 
   start = async () => {
@@ -63,16 +80,13 @@ export default class Cart extends ShadowComponent {
     await this.refresh();
   };
 
-  /* The cart shows one row per kind of discount or fee, adding up what it took across the lines, and which lines. */
-  adjustmentRows = adjustments => {
-    const rows = new Map();
-    for(const adjustment of adjustments){
-      const key = `${adjustment.type}|${adjustment.label}`;
-      const row = rows.get(key);
-      rows.set(key, { ...adjustment, amount: (row?.amount ?? 0) + adjustment.amount, lineIds: [...(row?.lineIds ?? []), ...(adjustment.lineId ? [adjustment.lineId] : [])] });
-    }
-    return [...rows.values()];
-  };
+  /* The cart changed somewhere else on the page (the side cart): take it, or ask again. */
+  cartChanged = cart => (cart ? this.cart = cart : this.refresh());
+
+  /* Whether pieces are placed inside, so the cart draws them and nothing of its own. */
+  get layout(){
+    return [...this.children].some(child => !child.slot);
+  }
 
   refresh = async () => {
     const [error, data] = await getCart();
@@ -104,29 +118,6 @@ export default class Cart extends ShadowComponent {
     Rendering
   */
 
-  renderLine(line){
-    const notices = this.cart.notices.filter(notice => notice.lineId === line.id);
-    return html`
-      <tr>
-        <td>
-          <div class="d-f" style="align-items: center; gap: var(--spacer_h);">
-            ${line.image ? html`<img src=${line.image.thumbnail ?? line.image.path} alt="" width="64" height="64" loading="lazy">` : nothing}
-            <div>
-              <a href=${`/products/${encodeURIComponent(line.slug)}/`} class="no-link"><strong>${line.name}</strong></a>
-              ${optionsText(line) ? html`<div class="tc-muted small">${optionsText(line)}</div>` : nothing}
-              ${notices.map(notice => html`<div class=${notice.blocking ? 'tc-danger small' : 'tc-warning small'}>${notice.message}</div>`)}
-            </div>
-          </div>
-        </td>
-        <td>${this.money(line.unitPrice)}</td>
-        <td>
-          <k-commerce-cart-qty .value=${live(line.quantity)} label=${line.name} ?disabled=${this.busy} @change=${event => this.change(line, event.detail.value)} @qty-remove=${() => this.change(line, 0)}></k-commerce-cart-qty>
-        </td>
-        <td>${this.money(line.lineTotal)}</td>
-      </tr>
-    `;
-  }
-
   render(){
     if(!this.cart) return this.error ? html`<p class="tc-danger" role="alert">${this.error}</p>` : html`<k-spinner></k-spinner>`;
     const { cart } = this;
@@ -135,37 +126,17 @@ export default class Cart extends ShadowComponent {
       return html`<div class="ta-center py"><p class="large">Your cart is empty.</p><a class="btn primary" href="/products/">Continue shopping</a></div>`;
     }
 
-    const general = cart.notices.filter(notice => !notice.lineId);
+    if(this.layout) return html`<slot name="before"></slot><slot></slot><slot name="after"></slot>`;
+
     return html`
-      <div aria-live="polite">
-        ${this.error ? html`<p class="tc-danger" role="alert">${this.error}</p>` : nothing}
-        ${general.map(notice => html`<p class=${notice.blocking ? 'tc-danger' : 'tc-warning'}>${notice.message}</p>`)}
-      </div>
+      ${renderNotices(this)}
       <slot name="before"></slot>
-      <div class="table-wrapper mb">
-        <table>
-          <thead><tr><th>Product</th><th>Price</th><th>Quantity</th><th>Total</th></tr></thead>
-          <tbody>${cart.lines.map(line => this.renderLine(line))}</tbody>
-        </table>
-      </div>
+      ${renderLines(this)}
       <div class="row">
         <div class="span-12 d-span-7"><slot name="after"></slot></div>
         <div class="span-12 d-span-5">
-          <table class="mb">
-            <tbody>
-              <tr><td style=${`background-color: var(--c_bg__alt); ${TOP_LEFT}`}><strong>Subtotal</strong></td><td class="ta-right" style=${TOP_RIGHT}>${this.money(cart.totals.subtotal)}</td></tr>
-              ${this.adjustmentRows(cart.adjustments).map(adjustment => html`<tr><td style="background-color: var(--c_bg__alt);"><strong>${adjustment.label}</strong>${itemNames(adjustment.lineIds, cart.lines) ? html`<small class="d-b tc-muted">${itemNames(adjustment.lineIds, cart.lines)}</small>` : nothing}</td><td class="ta-right">${this.money(adjustment.amount)}</td></tr>`)}
-              <tr><td style="background-color: var(--c_bg__alt);"><strong>Total</strong></td><td class="ta-right"><strong>${this.money(cart.totals.total)}</strong></td></tr>
-            </tbody>
-          </table>
-          ${cart.adjustments.some(adjustment => adjustment.data?.limited) && this.config?.priceFloorNotice ? html`<p class="tc-muted">${this.config.priceFloorNotice}</p>` : nothing}
-          <p class="tc-muted small">Taxes and credits calculated at checkout.</p>
-          <div class="d-g cols-2" style="gap: var(--spacer_h);">
-            <a class="btn ta-center" href="/products/"><k-icon name="arrow" direction="left"></k-icon> Continue shopping</a>
-            ${cart.blocked
-              ? html`<button class="primary" disabled><k-icon src="/commerce/icons/shopping_cart_checkout.svg"></k-icon> Proceed to checkout</button>`
-              : html`<a class="btn primary ta-center" href="/checkout/"><k-icon src="/commerce/icons/shopping_cart_checkout.svg"></k-icon> Proceed to checkout</a>`}
-          </div>
+          ${renderTotals(this)}
+          ${renderActions(this)}
         </div>
       </div>
     `;

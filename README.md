@@ -303,11 +303,15 @@ Hooks this extension listens to: `payment:succeeded`, `payment:failed`, `payment
 |---|---|---|
 | `<k-commerce-add-to-cart>` | `/commerce/components/AddToCart.js` | Quantity and the button; registered with kempo-products so every product card and page shows one. Disables with the reason |
 | `<k-commerce-cart-button>` | `CartButton.js` | The cart icon with a count, for the inside of a link to the cart page (`<a href="/cart/">`). A plain click opens the mini-cart; Ctrl, Cmd and middle clicks, and a page with no mini-cart, follow the link. On its own it draws its own link |
+| `<k-commerce-cart-button-widget>` | `CartButtonWidget.js` | Page builder widget: the cart button, for a custom page |
+| `<k-commerce-add-to-cart-widget>` | `AddToCartWidget.js` | Page builder widget: the quantity and Add to cart for the product in its `product-id` setting. A product with required choices needs its product page. Settings: text, icon, style, *Full width* (`full`, off by default), inline |
 | `<k-commerce-mini-cart>` | `MiniCart.js` | A `k-aside` cart; `open()`, `close()`, `toggle()`, `refresh()`; slots `before-lines`, `after-lines`, `footer`; fires `mini-cart-opened` and `mini-cart-closed` |
 | `<k-commerce-cart-qty>`, `<k-commerce-add-qty>` | `CartQty.js`, `AddQty.js` | The quantity pickers: one bordered control with a "-" button, a number you can type into (so 100 is not 99 clicks) and a "+" button, a whole number from 1 with no maximum, firing `change` (`detail.value`). In the cart the "-" turns into the remove-from-cart icon at 1 and fires `qty-remove` (typing 0 does too); the add-to-cart one just disables it at 1 |
-| `<k-commerce-cart>` | `Cart.js` | The cart page's body; slots `before` and `after` |
-| `<k-commerce-checkout>` | `Checkout.js` | The checkout page. **Light DOM**, because Stripe's fields do not mount inside a shadow root |
+| `<k-commerce-cart>` | `Cart.js` | The cart page's body; slots `before` and `after`. Put the cart pieces inside it and it draws only them (see *Laying out the cart and checkout*) |
+| `<k-commerce-checkout>` | `Checkout.js` | The checkout page. **Light DOM**, because Stripe's fields do not mount inside a shadow root. Put the checkout pieces inside it and it holds the order and draws only them |
 | `<k-commerce-orders>`, `<k-commerce-order>` | `Orders.js`, `Order.js` | Order history, and one order (`received` waits for the payment to be confirmed) |
+| `<k-commerce-cart-notices-widget>`, `-lines-`, `-totals-`, `-actions-` | `CartParts.js` | The pieces of the cart page, for a layout of your own |
+| `<k-commerce-checkout-contact-widget>`, `-billing-`, `-credits-`, `-payment-`, `-sections-`, `-summary-`, `-place-` | `CheckoutParts.js` | The pieces of the checkout page, for a layout of your own |
 
 Events (bubbling, composed): `cart-changed`, `cart-line-added`, `mini-cart-opened`, `mini-cart-closed`. Methods
 cause actions; events only say something happened. The browser client is `/commerce/sdk.js`.
@@ -320,6 +324,13 @@ even before any script has loaded. A site with no menu places that link itself.
 
 By default (`mini_cart_inject`) a script on every public page puts the mini-cart on the page. A site that wants to
 place the mini-cart itself turns that off and uses the element.
+
+**Laying out the cart and checkout.** The cart page, the checkout page and the order history are page builder widgets (the group **Cart and checkout**), so the pages that come with kempo-commerce can be changed in the page builder. **Cart**, **Checkout** and **Order history** draw the page as it is. To lay a page out yourself, put pieces inside the **Cart** or the **Checkout** and it draws only them, in your order, anywhere inside it (in rows and columns, around your own content):
+
+- the cart: **Cart notices**, **Cart items**, **Cart totals**, **Cart buttons**;
+- the checkout: **Checkout contact**, **Checkout billing address**, **Checkout credits**, **Checkout payment**, **Checkout extra sections** (what other extensions add, such as a shipping address), **Checkout order summary** and **Checkout place order**.
+
+A piece finds its Cart or Checkout with `closest()` and draws what the Cart or Checkout holds, so it works in any layout, and a Cart or Checkout with no pieces in it draws its own layout. An empty cart draws the empty cart message and none of the pieces. In the builder they draw a sample cart and order, so the layout can be seen; nothing is read from or sent to the server there, and the card fields are a placeholder. The Checkout's pieces are light DOM, like the Checkout, so the card fields can mount. The *Place order* piece is a button that places the order (there is no form around a layout of pieces, so Enter in a field does not submit it).
 
 **"Add to cart" on products** is injected into kempo-products' product cards and product page by
 `public/product-actions.global.html`, which fills that extension's `products-card-actions` and `products-detail-actions`

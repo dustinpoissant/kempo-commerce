@@ -89,7 +89,7 @@ export default {
   'the element finds its card or product page itself, and does not register with the old registry': async ({ pass, fail }) => {
     const source = await readFile(path.join(commercePublic, 'components/AddToCart.js'), 'utf8');
     if(/registerProductAction\(/.test(source)) return fail('it still registers');
-    if(!source.includes("closest('k-products-card, k-products-detail')") || !source.includes("addEventListener('selection-change'")) return fail('it does not look for its host');
+    if(!source.includes("closest('k-products-card, k-products-detail, k-products-parent-widget, k-products-product-widget')") || !source.includes("addEventListener('selection-change'")) return fail('it does not look for its host');
     const storefront = await readFile(path.join(commercePublic, 'components/Storefront.js'), 'utf8');
     if(storefront.includes('AddToCart')) return fail('the storefront script should not load it on every page');
     pass('');

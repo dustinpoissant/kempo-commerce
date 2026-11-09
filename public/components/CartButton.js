@@ -1,5 +1,5 @@
 import ShadowComponent from '/kempo-ui/components/ShadowComponent.js';
-import { html, css } from '/kempo-ui/lit-all.min.js';
+import { html, css, nothing } from '/kempo-ui/lit-all.min.js';
 import '/kempo-ui/components/Icon.js';
 import { getCart, onCartChanged } from '/commerce/sdk.js';
 
@@ -27,6 +27,9 @@ import { getCart, onCartChanged } from '/commerce/sdk.js';
 export default class CartButton extends ShadowComponent {
   static properties = {
     count: { state: true },
+    icon: { type: String },
+    text: { type: String },
+    counter: { type: String },
   };
 
   static styles = css`
@@ -60,6 +63,9 @@ export default class CartButton extends ShadowComponent {
   constructor(){
     super();
     this.count = 0;
+    this.icon = '/commerce/icons/shopping_cart.svg';
+    this.text = '';
+    this.counter = 'true';
     this.link = null;
     this.stopListening = null;
   }
@@ -123,7 +129,9 @@ export default class CartButton extends ShadowComponent {
   };
 
   get label(){
-    return this.count === 1 ? 'Cart, 1 item' : `Cart, ${this.count} items`;
+    const words = this.text || 'Cart';
+    if(this.counter === 'false') return words;
+    return this.count === 1 ? `${words}, 1 item` : `${words}, ${this.count} items`;
   }
 
   /*
@@ -131,7 +139,7 @@ export default class CartButton extends ShadowComponent {
   */
 
   render(){
-    const content = html`<k-icon src="/commerce/icons/shopping_cart.svg"></k-icon>${this.count ? html`<span class="count bg-primary" aria-hidden="true">${this.count}</span>` : ''}`;
+    const content = html`${this.icon ? html`<k-icon src=${this.icon}></k-icon>` : nothing}${this.text ? html`<span>${this.text}</span>` : nothing}${this.counter !== 'false' && this.count ? html`<span class="count bg-primary" aria-hidden="true">${this.count}</span>` : nothing}`;
     return this.link ? content : html`<a href="/cart/" aria-label=${this.label} @click=${this.handleClick}>${content}</a>`;
   }
 }

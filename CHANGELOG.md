@@ -4,10 +4,38 @@ All notable changes to `kempo-commerce` are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-09
+
+Requires kempo 4.11.0 or later.
+
+### Added (cart, checkout and orders in the page builder)
+
+- **The cart page, the checkout page and the order history are page builder widgets**, in a new group, **Cart and checkout**: **Cart** (`k-commerce-cart`), **Checkout** (`k-commerce-checkout`) and **Order history** (`k-commerce-orders`). They have the tags of their own elements, so the pages that come with kempo-commerce can be changed in the page builder. In the builder each draws a sample (a cart of two lines, an order with store credit and credits to spend, two past orders), asks the server for nothing and sends nothing; the card fields are a placeholder.
+- **Pieces to lay the cart and checkout out yourself.** Put them inside a Cart or a Checkout and it draws only them, in your order, anywhere inside it. Cart: **Cart notices**, **Cart items**, **Cart totals**, **Cart buttons** (`CartParts.js`). Checkout: **Checkout contact**, **Checkout billing address**, **Checkout credits**, **Checkout payment**, **Checkout extra sections** (what other extensions register with `registerCheckoutSection`), **Checkout order summary** and **Checkout place order** (`CheckoutParts.js`). With no pieces they draw their own layout, unchanged. The pieces find their parent with `closest()`, draw what it draws (the Cart's `public/utils/cartParts.js` templates, the Checkout's own `render…` methods, which are now public) and draw again on its `cart-change` or `checkout-change` event. The Cart widget keeps its `before` and `after` places.
+- **Checkout methods the pieces use**, besides `renderContact`, `renderBilling`, `renderCredits`, `renderPayment` and `renderSummary`: `renderMessages()`, `renderSections()`, `renderSummarySections()`, `renderSectionBody(section)`, `renderPlaceOrder({ standalone })`, and `layout`, `paymentShown` and `creditsShown` getters. The checkout's own layout is drawn from the same ones.
+
+### Fixed
+
+- **Add to cart with *Detect the parent product* works inside a Product widget.** In a widget's slot (Under the options) it said "Place it in a Parent Product", because it only looked for a Parent Product. It now also finds the **Product** widget (`k-products-product-widget`, kempo-products) it is placed in, and adds that widget's product with the options chosen there. The message now reads "Place it in a Parent Product or a Product". It needs a kempo-products whose Product widget gives its product and choices (`product`, `selections`, `price`, `complete`).
+
+### Added (page builder widgets)
+
+- **Add to cart has a *Full width* setting (`full`),** off by default, so the button is as wide as its text and the Styles tab's alignment can place it. Product cards and product pages still show the full-width button. The widget hides the Styles tab's *Background* and *Text colour* (`hide_styles`), because its *Style* setting sets the button's colour, and needs a kempo that supports `hide_styles`.
+
+- **Add to cart can take its product from a Parent Product.** The new *Detect the parent product* setting (`detect-parent`) makes the button add the product, and the options chosen, of the kempo-products Parent Product it is placed in, so one parent can sell a product with all its parts. The button follows the parent's choices as a product page's button follows its own. Outside a parent it reads "Place it in a Parent Product".
+- **Two page widgets for the page builder:** **Cart button** (`k-commerce-cart-button-widget`), the cart icon with its count, and **Add to cart** (`k-commerce-add-to-cart-widget`), a quantity and button for one product chosen in the settings panel. Both are declared under `page_widgets` in `kempo-config.json`, with an editor card and a settings panel for Add to cart. Cart and checkout are not widgets: they stay predefined pages.
+
+- **Cart button and Add to cart can be inline.** A new *Inline* setting (`inline`) puts the widget on the line with the content around it (`inline-block`) instead of on a line of its own (`block`, the default).
+
+### Fixed
+
+- **Add to cart in the page builder shows its icon and style.** The builder's copy of the button had no defaults, and a setting at its default is never written on the element, so it drew with no icon. It now starts from the same defaults as the page widget.
+
 ### Changed
 
-- The `kempo-ui` peer dependency is now `>=1.0.0`.
-- The `kempo` peer dependency is now `>=4.10.2`.
+- **A cart line's picture is the product's first picture** (`primaryPicture` from kempo-products' SDK), so a product whose first media is a video shows its first image, or the video's thumbnail, and never a video file as a picture. It needs the kempo-products release that exports `primaryPicture`.
+- **The page widgets are kempo-ui page builder widgets.** The page components extend kempo-ui's `ShadowComponent` and the Add to cart editor and settings extend kempo-ui's `WidgetEditor` and `WidgetSettings`. An icon setting is now a kempo-ui icon name or `src:` and the path of an SVG (the defaults are `src:/commerce/icons/…`); the widgets turn it into the address the cart components take (`utils/iconSource.js`), and still accept a path. It needs the kempo release that has kempo-ui's page builder, and kempo-ui 1.3.1 or later (the `kempo-ui` peer dependency is now `>=1.3.1`).
+- The `kempo` peer dependency is now `>=4.11.0`.
 
 - **The order page's tabs are on the page** (Items, Payment, Customer, History), each a component of its own that reloads when the order changes (`orderChanged`, which bubbles to the page's `#order` wrapper). The page has a `commerce-admin-order-tabs` location inside its tabs, where extensions add tabs as `k-tab` and `k-tab-content`. This replaces the `k-commerce-order-tab` registry and its `position` ordering: an extension's tab now comes after History. kempo-shipping's Shipping tab uses the location this way.
 - **Commerce Settings' tabs are on the page** (Store, Carts, Orders, Mini-cart, Protection, Emails), each section with its own Save button. Each section is a `k-commerce-admin-settings-section` with a `section` attribute, and saves only its own settings.

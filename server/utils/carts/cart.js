@@ -1,6 +1,6 @@
 import db from 'kempo/server/db/index.js';
 import { and, asc, eq, sql, inArray } from 'drizzle-orm';
-import { creditsEnabled, getCreditsPerUnit, computePrice, unavailableReason, resolveImages, UNLIMITED } from 'kempo-products/sdk';
+import { creditsEnabled, getCreditsPerUnit, computePrice, unavailableReason, resolveImages, primaryPicture, UNLIMITED } from 'kempo-products/sdk';
 import { kempoCommerceCart, kempoCommerceCartLine } from '../../db/schema.js';
 import newId, { secret, hashToken } from '../ids.js';
 import { readConfig } from '../config/settings.js';
@@ -131,8 +131,8 @@ export const getCart = async ({ cartId } = {}) => {
     /* A picture for each line, from kempo-media when it is there; without it there is simply none. */
     const pictures = await resolveImages([...products.values()]).catch(() => ({}));
     for(const line of lines){
-      const first = (line.images ?? [])[0];
-      line.image = first && pictures?.[first] ? { path: pictures[first].path, thumbnail: pictures[first].thumbnail ?? null, alt: pictures[first].alt || line.name } : null;
+      const picture = primaryPicture(line.images ?? [], pictures);
+      line.image = picture ? { path: picture.path, thumbnail: picture.thumbnail ?? null, alt: picture.alt || line.name } : null;
       delete line.images;
     }
 

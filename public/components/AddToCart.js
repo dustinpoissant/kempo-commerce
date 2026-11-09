@@ -4,6 +4,9 @@ import '/kempo-ui/components/Icon.js';
 import Toast from '/kempo-ui/components/Toast.js';
 import '/commerce/components/AddQty.js';
 import { getConfig, addToCart, announceCartChanged } from '/commerce/sdk.js';
+import addToCartButton from '/commerce/utils/addToCartButton.js';
+import { getProduct } from '/products/sdk.js';
+import { validSelections, missingRequired } from '/commerce/utils/selections.js';
 
 /* The site's settings, asked for once however many of these buttons a page has. */
 let config = null;
@@ -33,8 +36,15 @@ const loadConfig = () => config ??= getConfig();
 export default class AddToCart extends ShadowComponent {
   static properties = {
     productId: { type: String, attribute: 'product-id' },
+    label: { type: String },
+    icon: { type: String },
+    variant: { type: String },
+    full: { type: Boolean },
     product: { attribute: false },
     selections: { attribute: false },
+    picked: { attribute: false },
+    source: { attribute: false },
+    detectParent: { type: Boolean, attribute: 'detect-parent' },
     price: { attribute: false },
     complete: { attribute: false },
     quantity: { state: true },
@@ -46,8 +56,12 @@ export default class AddToCart extends ShadowComponent {
     super();
     this.host = null;
     this.productId = '';
+    this.full = true;
     this.product = null;
     this.selections = undefined;
+    this.picked = {};
+    this.source = null;
+    this.detectParent = false;
     this.price = null;
     this.complete = true;
     this.quantity = 1;
@@ -61,9 +75,12 @@ export default class AddToCart extends ShadowComponent {
 
   connectedCallback(){
     super.connectedCallback();
-    this.host = this.closest('k-products-card, k-products-detail');
-    this.host?.addEventListener('selection-change', this.follow);
-    this.follow();
+    this.attach();
+    if(!this.host && !this.detectParent && this.productId){
+      getProduct(this.productId).then(([error, data]) => {
+        if(!error) this.product = data.product;
+      });
+    }
   }
 
   disconnectedCallback(){
@@ -71,16 +88,31 @@ export default class AddToCart extends ShadowComponent {
     super.disconnectedCallback();
   }
 
+  updated(changed){
+    if(changed.has('source')) this.attach();
+  }
+
   /*
     Event handlers
   */
 
-  /* Takes what the card or product page it sits in knows: the product, and on a product page the choices. */
+  /*
+    Takes what the card, product page, Parent Product or Product widget it sits in knows: the product, and on a product page,
+    a Parent Product or a Product widget the choices. `source` is the Parent Product or Product widget to follow when the element is inside a widget's shadow DOM, where
+    the page's own parent cannot be found.
+  */
+  attach(){
+    this.host?.removeEventListener('selection-change', this.follow);
+    this.host = this.source ?? this.closest('k-products-card, k-products-detail, k-products-parent-widget, k-products-product-widget');
+    this.host?.addEventListener('selection-change', this.follow);
+    this.follow();
+  }
+
   follow = () => {
     const { host } = this;
     if(!host) return;
     this.product = host.product ?? null;
-    if(this.product && host.localName === 'k-products-detail'){
+    if(this.product && ['k-products-detail', 'k-products-parent-widget', 'k-products-product-widget'].includes(host.localName)){
       this.selections = host.selections;
       this.price = host.price;
       this.complete = host.complete;
@@ -90,7 +122,8 @@ export default class AddToCart extends ShadowComponent {
   add = async () => {
     this.busy = true;
     this.error = '';
-    const [error, data] = await addToCart({ productId: this.product?.id ?? this.productId, quantity: this.quantity, selections: this.selections ?? {} });
+    const selections = this.host ? this.selections ?? {} : validSelections(this.product, this.picked);
+    const [error, data] = await addToCart({ productId: this.product?.id ?? this.productId, quantity: this.quantity, selections });
     this.busy = false;
     if(error){
       this.error = error.msg;
@@ -119,18 +152,21 @@ export default class AddToCart extends ShadowComponent {
 
   get reason(){
     const { product } = this;
+    if(this.detectParent && !this.host) return 'Place it in a Parent Product or a Product';
+    if(this.detectParent && !product) return 'Loading the product';
     if(!product) return '';
     if(product.availability === 'sold') return 'Sold';
     if(product.availability === 'pending') return 'Sale pending';
     if(product.inStock === false) return 'Out of stock';
     if(product.price === null || product.price === undefined) return 'Not for sale online';
     if(this.selections !== undefined && this.complete === false) return 'Choose your options';
+    if(!this.host && missingRequired(product, this.picked).length) return 'Choose your options';
     return '';
   }
 
   /* On a card, a product with options has to be configured on its own page. */
   get needsOptions(){
-    return this.selections === undefined && (this.product?.options ?? []).some(option => option.required);
+    return Boolean(this.host) && this.selections === undefined && (this.product?.options ?? []).some(option => option.required);
   }
 
   /*
@@ -138,7 +174,7 @@ export default class AddToCart extends ShadowComponent {
   */
 
   render(){
-    if(!this.product && !this.productId) return nothing;
+    if(!this.product && !this.productId && !this.detectParent) return nothing;
     const reason = this.reason;
     const onCard = this.selections === undefined;
 
@@ -154,9 +190,7 @@ export default class AddToCart extends ShadowComponent {
             <k-commerce-add-qty .value=${this.quantity} label=${this.product?.name ?? ''} ?disabled=${Boolean(reason) || this.busy} @change=${event => { this.quantity = event.detail.value; }}></k-commerce-add-qty>
           </div>
         `}
-        <button class="primary full" ?disabled=${Boolean(reason) || this.busy} @click=${this.add}>
-          <k-icon src="/commerce/icons/add_shopping_cart.svg"></k-icon> ${reason || (this.busy ? 'Adding…' : 'Add to cart')}
-        </button>
+        ${addToCartButton({ label: this.label, icon: this.icon, variant: this.variant, full: this.full, disabled: Boolean(reason) || this.busy, busy: this.busy, reason, onClick: this.add })}
         ${this.error ? html`<p class="tc-danger mtq mb0" role="alert">${this.error}</p>` : nothing}
       </div>
     `;
