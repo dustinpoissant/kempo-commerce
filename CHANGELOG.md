@@ -4,6 +4,13 @@ All notable changes to `kempo-commerce` are documented in this file.
 
 ## [Unreleased]
 
+Requires kempo 4.15.0 or later, for the notification types.
+
+### Added
+
+- **A customer with an account is told in their bell how their order stands** (processing, complete, on hold, failed, cancelled, refunded), in the words their email uses, linking to the order. It is one notification per order, refreshed as the order moves on. A guest has no account, so their email and order page are the whole of it.
+- The shop's own notifications use the new types: a new order is a `notice`, and what costs money if it is missed (a dispute, a payment that arrived for an expired order and could not be refunded, a refund that only partly went through) is a `banner` that must be acknowledged.
+
 ## [0.2.0] - 2026-11-09
 
 Requires kempo 4.11.0 or later, and kempo-products 0.4.0 or later (the cart and checkout take its prices and pictures).

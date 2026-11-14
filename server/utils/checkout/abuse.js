@@ -49,7 +49,7 @@ export const checkLimits = async ({ userId = null, ip = null, email = null } = {
       await log('refused', { userId, ip, email, reason });
       const refused = await countWhere(eq(kempoCommerceAttempt.kind, 'refused'), hour);
       if(isMilestone(refused)){
-        await notifyAdmins({ title: 'Checkout attempts are being refused', message: `${refused} checkout attempt${refused === 1 ? ' was' : 's were'} refused in the last hour (${reason}). This can be someone trying stolen cards.`, level: 'warning', dedupeKey: `checkout-refused:${new Date().toISOString().slice(0, 13)}:${refused}` });
+        await notifyAdmins({ title: 'Checkout attempts are being refused', message: `${refused} checkout attempt${refused === 1 ? ' was' : 's were'} refused in the last hour (${reason}). This can be someone trying stolen cards.`, subtype: 'warning', dedupeKey: `checkout-refused:${new Date().toISOString().slice(0, 13)}:${refused}` });
       }
       return [{ code: 429, msg: 'Too many checkout attempts. Please try again a little later.', retryAfter }, null];
     };

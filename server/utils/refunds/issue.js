@@ -169,7 +169,7 @@ const finish = async ({ refundId, actor }) => {
     await notifyAdmins({
       title: `A refund on order ${label} was only partly issued`,
       message: `"${outcome.failed.label}" failed: ${outcome.failed.error}. Open the order to finish or correct it.`,
-      level: 'error', orderId: orderRow.id, dedupeKey: `refund-partial:${refundId}`,
+      subtype: 'error', orderId: orderRow.id, dedupeKey: `refund-partial:${refundId}`,
     });
     return [{ code: 502, msg: `The refund was only partly issued. "${outcome.failed.label}" failed: ${outcome.failed.error}`, partial: true, refundId }, { refund: { ...refund, status: 'partial' } }];
   }

@@ -57,7 +57,7 @@ export const onPaymentSucceeded = async payment => {
   await notifyAdmins({
     title: refundError ? `A payment arrived for expired order ${label} and could not be refunded` : `A payment arrived for expired order ${label} and was refunded`,
     message: refundError ? `Refund it by hand in the payments screen: ${refundError.msg}` : 'The customer was charged after the order expired, so the payment was refunded in full automatically.',
-    level: refundError ? 'error' : 'warning', orderId: order.id, dedupeKey: `late-payment:${payment.id}`,
+    subtype: refundError ? 'error' : 'warning', orderId: order.id, dedupeKey: `late-payment:${payment.id}`,
   });
 };
 
@@ -103,7 +103,7 @@ export const onPaymentRefunded = async (payment, refund) => {
   const label = formatOrderNumber(order.number, await readConfig());
   await notifyAdmins({
     title: `Order ${label} was refunded outside the shop`, message: `${outside} was refunded from the payment in the processor's dashboard. Nothing was changed on the order: refund it here too if the goods came back.`,
-    level: 'warning', orderId: order.id, dedupeKey: `refund-outside:${payment.id}:${payment.amountRefunded}`,
+    subtype: 'warning', orderId: order.id, dedupeKey: `refund-outside:${payment.id}:${payment.amountRefunded}`,
   });
 };
 
@@ -115,7 +115,7 @@ export const onPaymentDisputed = async (payment, disputed, reason) => {
   await notifyAdmins({
     title: disputed ? `Order ${label} was disputed` : `The dispute on order ${label} was closed`,
     message: disputed ? `The customer's bank opened a chargeback${reason ? ` (${reason})` : ''}. Answer it in the processor's dashboard; nothing was changed on the order.` : 'It may have been won. Nothing was changed on the order.',
-    level: disputed ? 'error' : 'info', orderId: order.id, dedupeKey: `dispute:${payment.id}:${disputed}`,
+    subtype: disputed ? 'error' : 'info', orderId: order.id, dedupeKey: `dispute:${payment.id}:${disputed}`,
   });
 };
 

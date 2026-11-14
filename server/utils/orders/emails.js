@@ -88,18 +88,49 @@ export const sendOrderEmail = async (order, template, subject, extra = {}) => {
 };
 
 /*
-  A notification for the people who run the shop. Notifications are optional for the user's kempo
-  version, so a kempo that predates them just means no notification.
+  A notification for the people who run the shop. Something that went wrong (`subtype: 'error'`: a dispute, a payment
+  that could not be refunded) is a banner that comes back until someone acknowledges it, because it costs money if it
+  is missed; everything else (a new order, a refund made elsewhere) is a notice that waits in the bell.
 */
-export const notifyAdmins = async ({ title, message, level = 'info', orderId, dedupeKey }) => {
-  if(typeof kempo.createNotification !== 'function') return;
+export const notifyAdmins = async ({ title, message, subtype = 'info', orderId, dedupeKey }) => {
   try {
-    await kempo.createNotification({
-      owner: OWNER, title, message, level, permission: 'commerce:orders:view', dedupeKey,
+    const [error] = await kempo.createNotification({
+      owner: OWNER, type: subtype === 'error' ? 'banner' : 'notice', mustAcknowledge: subtype === 'error',
+      title, message, subtype, permission: 'commerce:orders:view', dedupeKey,
       actions: orderId ? [{ label: 'View order', href: `/admin/extension/kempo-commerce/order/?id=${encodeURIComponent(orderId)}` }] : undefined,
     });
+    if(error) console.error(`[kempo-commerce] Could not notify administrators: ${error.msg}`);
   } catch(error) {
     console.error('[kempo-commerce] Could not notify administrators:', error);
+  }
+};
+
+/*
+  What a customer with an account is told in their bell as their order moves, in the words their email uses. One
+  notification per order, refreshed as the order moves on, so a customer sees where it stands and not a pile. A guest has
+  no account to notify: their email is the whole of it, and the order page they were given.
+*/
+const CUSTOMER_NOTICES = {
+  processing: { subtype: 'info', title: 'We are preparing your order', message: 'Your payment was received.' },
+  completed: { subtype: 'success', title: 'Your order is complete', message: 'Everything in it is on its way or ready.' },
+  on_hold: { subtype: 'warning', title: 'Your order is on hold', message: 'We will be in touch if we need anything from you.' },
+  failed: { subtype: 'error', title: 'Your payment did not go through', message: 'Nothing was charged. You can try again from your cart.' },
+  cancelled: { subtype: 'info', title: 'Your order was cancelled', message: null },
+  refunded: { subtype: 'info', title: 'Your order was refunded', message: 'The money is on its way back to you.' },
+};
+
+export const notifyCustomer = async (order, to, label) => {
+  const notice = CUSTOMER_NOTICES[to];
+  if(!order.userId || !notice) return;
+  try {
+    const [error] = await kempo.createNotification({
+      owner: OWNER, type: 'notice', subtype: notice.subtype, title: `${notice.title} (${label})`, message: notice.message,
+      dedupeKey: `order:${order.id}:status`, userIds: [order.userId],
+      actions: [{ label: 'View order', href: `/commerce/account/orders/${encodeURIComponent(order.id)}/` }],
+    });
+    if(error) console.error(`[kempo-commerce] Could not notify the customer of order ${order.id}: ${error.msg}`);
+  } catch(error) {
+    console.error(`[kempo-commerce] Could not notify the customer of order ${order.id}:`, error);
   }
 };
 
@@ -119,13 +150,14 @@ export const sendStatusEmail = async (order, from, to) => {
   const label = formatOrderNumber(order.number, config);
 
   if(to === 'pending_payment' && from === 'on_hold') return;
+  await notifyCustomer(order, to, label);
   if(to === 'processing' && from === 'pending_payment'){
     await sendOrderEmail(order, 'order-processing', `${SUBJECTS['order-processing']} (${label})`);
-    await notifyAdmins({ title: `New order ${label}`, message: `${order.billing?.name || order.email} placed an order for ${money(order, order.total)}.`, level: 'success', orderId: order.id, dedupeKey: `order:${order.id}:new` });
+    await notifyAdmins({ title: `New order ${label}`, message: `${order.billing?.name || order.email} placed an order for ${money(order, order.total)}.`, subtype: 'success', orderId: order.id, dedupeKey: `order:${order.id}:new` });
     return;
   }
   if(to === 'completed'){
-    if(from === 'pending_payment') await notifyAdmins({ title: `New order ${label}`, message: `${order.billing?.name || order.email} placed an order for ${money(order, order.total)}.`, level: 'success', orderId: order.id, dedupeKey: `order:${order.id}:new` });
+    if(from === 'pending_payment') await notifyAdmins({ title: `New order ${label}`, message: `${order.billing?.name || order.email} placed an order for ${money(order, order.total)}.`, subtype: 'success', orderId: order.id, dedupeKey: `order:${order.id}:new` });
     if(from === 'processing' || from === 'pending_payment') await sendOrderEmail(order, 'order-completed', `${SUBJECTS['order-completed']} (${label})`);
     return;
   }

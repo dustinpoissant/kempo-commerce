@@ -251,6 +251,20 @@ combines them so every extension follows one rule. A discount says what it is, `
 
 The cart shows one row per kind of discount, adding up the lines. A discount stays against its line on the order, so tax is worked out on what the customer pays, and **a refund of a line returns what was paid for it**, not its full price. `resolveUnitDiscounts` and `resolveDiscountRows` are exported for an extension that wants the same answer for a storefront price.
 
+## Notifications
+
+Commerce tells people in the bell as well as by email, through kempo's notifications:
+
+| Who | When | What |
+|---|---|---|
+| A customer with an account | Their order moves (processing, complete, on hold, failed, cancelled, refunded) | A **notice** in the words the email uses, linking to the order. One per order, refreshed as it moves on. |
+| Staff who hold `commerce:orders:view` | A new order | A **notice** linking to it. |
+| The same staff | A dispute opens, a payment arrives for an expired order, a refund only partly went through, or checkout attempts are being refused | A **banner** that comes back until it is acknowledged, because each costs money or is under attack if missed. |
+| The same staff | A refund made outside the shop, a dispute that was closed | A **notice**. |
+
+A guest has no account, so nothing is raised for them: their email and the order page they were given are the whole of it. Needs `kempo >= 4.15.0`.
+
+
 ## Hooks
 
 Fired through kempo's `triggerHook`, named `kempo-commerce:<resource>:<event>`. **Guards** run before something
